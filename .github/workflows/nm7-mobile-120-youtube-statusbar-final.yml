@@ -1,0 +1,221 @@
+name: NM7 IPTV Mobile 1.10.120 YouTube UI Chrome Architecture Fix — Build
+# YouTube-reference UI validation trigger v3
+
+"on":
+  push:
+    branches:
+      - "work/mobile-youtube-ui-v120"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout source and submodules
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: false
+
+      - name: Restore pinned SmartTube phone source
+        run: |
+          set -euxo pipefail
+          git clone --no-checkout https://github.com/systematiq-one/SmartTube-droid.git third_party/SmartTube-droid
+          git -C third_party/SmartTube-droid checkout --detach 4825d6aa8b6f1d3181927f9e96c7d89cab13d510
+          git -C third_party/SmartTube-droid submodule update --init --recursive
+
+      - name: Patch SmartTube for AGP 8.13
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root=Path('third_party/SmartTube-droid')
+          for p in root.rglob('build.gradle'):
+              if '.git' in p.parts: continue
+              t=p.read_text(errors='ignore'); orig=t
+              mfile=p.parent/'src/main/AndroidManifest.xml'; pkg=None
+              if mfile.is_file():
+                  m=re.search(r'\bpackage\s*=\s*["\']([^"\']+)["\']',mfile.read_text(errors='ignore'))
+                  if m: pkg=m.group(1)
+              if 'android {' in t:
+                  if pkg and not re.search(r'\bnamespace\s',t): t=re.sub(r'(android\s*\{)',r'\1\n    namespace "'+pkg+'"',t,1)
+                  if not re.search(r'compileSdkVersion|compileSdk\s*[= ]',t): t=re.sub(r'(android\s*\{)',r'\1\n    compileSdkVersion project.properties.compileSdkVersion',t,1)
+                  if 'flavorDimensions' not in t: t=re.sub(r'(android\s*\{)',r'\1\n    flavorDimensions "device"',t,1)
+                  elif '"device"' not in re.search(r'flavorDimensions[^\n]*',t).group(0): t=re.sub(r'(flavorDimensions\s+[^\n]+)',r'\1, "device"',t,1)
+                  if not re.search(r'\bmobile\s*\{\s*dimension\s+["\']device["\']',t,re.S): t=re.sub(r'(android\s*\{)',r'\1\n    productFlavors { mobile { dimension "device" } }',t,1)
+                  for f in ('stbeta','ststable','stfdroid'): t=re.sub(r'(?m)^(\s*)'+f+r'\s*\{\s*\}',lambda m:m.group(1)+f+' { dimension "default" }',t)
+                  t=re.sub(r'(?m)^(\s*)classifier\s+["\']([^"\']+)["\']\s*$',r"\1archiveClassifier.set('\2')",t)
+                  t=re.sub(r'(?m)^(\s*)classifier\s*=\s*["\']([^"\']+)["\']\s*$',r"\1archiveClassifier.set('\2')",t)
+                  if 'kotlin-android' in t and 'kotlinOptions' not in t: t=re.sub(r'(android\s*\{)',r'\1\n    kotlinOptions { jvmTarget = "1.8" }',t,1)
+              if t!=orig: p.write_text(t)
+          PY
+
+      # Chạy nền tảng Mobile UI/performance trước, sau đó áp dụng riêng v114 chrome UI.
+      - name: Patch SmartTube Mobile UI and playback lifecycle
+        run: |
+          set -euxo pipefail
+          python3 scripts/patch-mobile-v37.py
+          python3 scripts/patch-mobile-v106.py
+
+      - name: Patch Mobile YouTube chrome architecture v1.10.120
+        run: |
+          set -euxo pipefail
+          python3 scripts/patch-mobile-v114-youtube-ui.py
+          python3 scripts/patch-mobile-v119-youtube-chrome-final.py
+          python3 scripts/patch-mobile-v120-youtube-statusbar-final.py
+
+      - name: Verify 1.10.120 build configuration
+        run: |
+          set -euxo pipefail
+          test "$(grep -c 'versionName = "1.10.120"' app/build.gradle.kts)" -eq 1
+          test "$(grep -c 'versionCode = 136' app/build.gradle.kts)" -eq 1
+
+      - name: Check Mobile lifecycle regression guards
+        run: |
+          set -euxo pipefail
+          mkdir -p dist/mobile-diagnostics
+          python3 scripts/verify-mobile-lifecycle.py || true
+
+      - name: Patch SmartTube show_buffering resource collision
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('third_party/SmartTube-droid')
+          changed=0
+          for base in (
+              root/'exoplayer-amzn-2.10.6/library/ui/src/main/java',
+              root/'exoplayer-amzn-2.10.6/library/ui/src/main/res',
+          ):
+              if not base.is_dir(): continue
+              for p in base.rglob('*'):
+                  if p.suffix not in {'.java','.xml'}: continue
+                  t=p.read_text(errors='ignore')
+                  n=t.replace('show_buffering','st_show_buffering')
+                  if n != t:
+                      p.write_text(n)
+                      changed += 1
+          print('Renamed SmartTube legacy show_buffering references:',changed)
+          PY
+
+      - name: Patch SmartTube source compatibility
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('third_party/SmartTube-droid/SharedModules/sharedutils/src/main/java/com/liskovsoft/sharedutils/okhttp/DohProviders.kt')
+          if p.is_file():
+              t=p.read_text()
+              t=t.replace('import okhttp3.toHttpUrlOrNull\n','').replace('return s.toHttpUrlOrNull() ?: throw NullPointerException("unable to parse url")','return HttpUrl.get(s)').replace('return HttpUrl.parse(s) ?: throw NullPointerException("unable to parse url")','return HttpUrl.get(s)')
+              p.write_text(t)
+          root=Path('third_party/SmartTube-droid')
+          wanted={'auto_frame_rate_applying','proxy_test_error','proxy_test_start','proxy_test_status'}
+          pat=re.compile(r'(<string\b[^>]*\bname=["\']('+'|'.join(wanted)+r')["\'][^>]*>)(.*?)(</string>)',re.S)
+          tok=re.compile(r'%(?![0-9]+\$)([sdif])')
+          for p in root.rglob('*.xml'):
+              if '.git' in p.parts: continue
+              x=p.read_text(errors='ignore')
+              def repl(m):
+                  i=[0]
+                  def r(z): i[0]+=1; return f'%{i[0]}${z.group(1)}'
+                  return m.group(1)+tok.sub(r,m.group(3))+m.group(4)
+              p.write_text(pat.sub(repl,x))
+          PY
+
+      - name: Isolate SmartTube legacy player resources from Media3
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+          root = Path('third_party/SmartTube-droid')
+          ui = root / 'exoplayer-amzn-2.10.6/library/ui'
+          res = ui / 'src/main/res/layout'
+          player = ui / 'src/main/java/com/google/android/exoplayer2/ui/PlayerView.java'
+          if res.is_dir() and player.is_file():
+              if (res / 'exo_player_view.xml').is_file():
+                  shutil.copy2(res / 'exo_player_view.xml', res / 'st_exo_player_view.xml')
+              if (res / 'exo_simple_player_view.xml').is_file():
+                  shutil.copy2(res / 'exo_simple_player_view.xml', res / 'st_exo_simple_player_view.xml')
+              simple = res / 'st_exo_player_view.xml'
+              if simple.is_file():
+                  t = simple.read_text()
+                  simple.write_text(t.replace('@layout/exo_simple_player_view', '@layout/st_exo_simple_player_view'))
+              t = player.read_text()
+              player.write_text(t.replace('R.layout.exo_player_view', 'R.layout.st_exo_player_view'))
+          PY
+
+      - name: Configure build tools
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: "8.13"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: "12266719"
+          packages: "platform-tools"
+
+      - name: Install SDK packages
+        run: sdkmanager "platforms;android-34" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Verify SmartTube PlaybackActivity pitch overrides
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("third_party/SmartTube-droid/smarttubedroid/src/main/java/com/liskovsoft/smartyoutubetv2/droid/ui/playback/PlaybackActivity.java")
+          if p.is_file():
+              lines = p.read_text().splitlines(True)
+              for i, line in enumerate(lines):
+                  if "public float getPitch(" in line or "public void setPitch(" in line:
+                      if i > 0 and lines[i - 1].strip() == "@Override":
+                          lines[i - 1] = ""
+              p.write_text("".join(lines))
+          PY
+
+      - name: Finalize YouTube avatar getter compatibility
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('third_party/SmartTube-droid/MediaServiceCore/youtubeapi/src/main/java/com/liskovsoft/youtubeapi/service/data/YouTubeMediaItem.java')
+          if p.is_file():
+              lines = p.read_text().splitlines(True)
+              for i in range(1, len(lines)):
+                  if lines[i].strip().startswith('public String getChannelThumbnailUrl(') and lines[i-1].strip() == '@Override':
+                      lines[i-1] = ''
+              p.write_text(''.join(lines))
+          PY
+
+      - name: Build Mobile only (YouTube UI device-fix candidate)
+        run: |
+          set -o pipefail
+          gradle --no-daemon --console=plain \
+            -PcompileSdkVersion=android-36 \
+            -PminSdkVersion=23 \
+            -PtargetSdkVersion=36 \
+            -PbuildToolsVersion=36.0.0 \
+            -PjunitXVersion=1.1.5 \
+            -PtruthXVersion=1.5.0 \
+            -PtestXSupportVersion=1.1.0 \
+            -PannotationXVersion=1.1.0 \
+            :app:assembleMobileDebug
+          mkdir -p dist/mobile
+          cp app/build/outputs/apk/mobile/debug/*.apk dist/mobile/
+          cd dist/mobile && sha256sum *.apk > SHA256SUMS.txt
+
+      - name: Upload Mobile APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NM7-IPTV-Mobile-1.10.120-FINAL
+          path: dist/mobile/
+          retention-days: 30
+          if-no-files-found: error

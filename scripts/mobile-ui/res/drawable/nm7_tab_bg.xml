@@ -1,0 +1,18 @@
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true">
+        <inset android:insetLeft="4dp" android:insetRight="4dp" android:insetTop="6dp" android:insetBottom="6dp">
+            <shape>
+                <solid android:color="#FF0F0F0F"/>
+                <corners android:radius="8dp"/>
+            </shape>
+        </inset>
+    </item>
+    <item>
+        <inset android:insetLeft="4dp" android:insetRight="4dp" android:insetTop="6dp" android:insetBottom="6dp">
+            <shape>
+                <solid android:color="#FFF2F2F2"/>
+                <corners android:radius="8dp"/>
+            </shape>
+        </inset>
+    </item>
+</selector>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Keeps shared PlayerActivity compilable while the TV layout intentionally has no rotation control. -->
+    <item name="btnRotate" type="id" />
+</resources>

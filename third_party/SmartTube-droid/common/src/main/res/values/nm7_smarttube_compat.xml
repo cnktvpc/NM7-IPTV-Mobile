@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SmartTube</string>
+    <string name="cancel">Cancel</string>
+    <style name="AppDialog" parent="android:style/Theme.Material.Dialog.Alert" />
+    <item name="lb_control_closed_captioning" type="id" />
+    <item name="lb_control_high_quality" type="id" />
+</resources>

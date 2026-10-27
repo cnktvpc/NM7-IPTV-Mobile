@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sign-in / device pairing / browser screens. User-facing text reuses common's translated
+     strings wherever one exists (signin_view_title, login_from_browser, cancel_dialog...);
+     only text with no equivalent there lives here. -->
+<resources>
+    <string name="signin_waiting">Waiting for confirmation… once you have entered the code, just come back to this app.</string>
+</resources>

@@ -1,0 +1,216 @@
+<?xml version='1.0' encoding='utf-8'?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:id="@+id/playback_root" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@android:color/black" android:keepScreenOn="true">
+    <FrameLayout android:id="@+id/playback_player_container" android:layout_width="0dp" android:layout_height="0dp" android:background="@android:color/black" app:layout_constraintDimensionRatio="H,16:9" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent">
+        <ImageView android:id="@+id/playback_background" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="centerCrop" android:visibility="gone" />
+        <com.github.vkay94.dtpv.DoubleTapPlayerViewImpl android:id="@+id/playback_player_view" android:layout_width="match_parent" android:layout_height="match_parent" app:resize_mode="fit" app:surface_type="surface_view" app:use_controller="false" 
+            app:keep_content_on_player_reset="false" 
+            app:shutter_background_color="@android:color/black" />
+        <!-- NM7 1.10.86: selected-video poster sits above SurfaceView until first frame. -->
+        <ImageView
+            android:id="@+id/nm7_startup_poster"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="centerCrop"
+            android:visibility="gone" />
+
+        <com.google.android.exoplayer2.ui.SubtitleView android:id="@+id/playback_subtitles" android:layout_width="match_parent" android:layout_height="match_parent" />
+        <com.github.vkay94.dtpv.youtube.YouTubeOverlay android:id="@+id/playback_youtube_overlay" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
+        <include layout="@layout/playback_overlay" />
+        <ProgressBar android:id="@+id/playback_progress" android:layout_width="48dp" android:layout_height="48dp" android:layout_gravity="center" android:indeterminate="true" android:visibility="gone" />
+        <LinearLayout android:id="@+id/playback_indicator" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:background="@drawable/playback_indicator_bg" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="14dp" android:paddingLeft="14dp" android:paddingTop="8dp" android:paddingEnd="14dp" android:paddingRight="14dp" android:paddingBottom="8dp" android:visibility="gone">
+            <ImageView android:id="@+id/playback_indicator_icon" android:layout_width="20dp" android:layout_height="20dp" android:contentDescription="@null" android:src="@drawable/playback_ic_volume" />
+            <TextView android:id="@+id/playback_indicator_text" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:layout_marginLeft="8dp" android:textColor="@color/playback_control" android:textSize="14sp" />
+        </LinearLayout>
+    </FrameLayout>
+    <LinearLayout android:id="@+id/playback_panel" android:layout_width="0dp" android:layout_height="0dp" android:background="#FFFFFF" android:orientation="vertical" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toBottomOf="@id/playback_player_container">
+        <LinearLayout android:id="@+id/nm7_watch_metadata" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="#FFFFFF">
+            <TextView android:id="@+id/playback_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:paddingStart="12dp" android:paddingLeft="12dp" android:paddingTop="10dp" android:paddingEnd="12dp" android:paddingRight="12dp" android:textColor="#0F0F0F" android:textSize="16sp" android:textStyle="bold" android:paddingBottom="4dp" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:paddingEnd="12dp">
+                <TextView android:id="@+id/playback_second_title" android:layout_width="0dp" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:paddingStart="12dp" android:paddingLeft="12dp" android:paddingTop="2dp" android:paddingEnd="4dp" android:paddingRight="4dp" android:textColor="#606060" android:textSize="11sp" android:layout_weight="1" />
+                <TextView android:id="@+id/nm7_details_more" android:layout_width="wrap_content" android:layout_height="32dp" android:gravity="center" android:text="…xem thêm" android:textColor="#0F0F0F" android:textSize="12sp" android:textStyle="bold" android:background="?android:attr/selectableItemBackground" />
+            </LinearLayout>
+            <LinearLayout android:id="@+id/playback_channel_row" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="?android:attr/selectableItemBackground" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="12dp" android:paddingLeft="12dp" android:paddingTop="4dp" android:paddingEnd="12dp" android:paddingRight="12dp" android:paddingBottom="2dp" android:visibility="gone">
+                <TextView android:id="@+id/playback_channel_name" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="0dp" android:layout_marginLeft="0dp" android:layout_weight="1" android:ellipsize="end" android:maxLines="1" android:textColor="#0F0F0F" android:textSize="12sp" />
+            </LinearLayout>
+            <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="8dp" android:paddingLeft="8dp" android:paddingEnd="8dp" android:paddingRight="8dp" android:scrollbars="none">
+                <LinearLayout android:id="@+id/playback_chips" android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:paddingTop="8dp" android:paddingBottom="8dp" android:minHeight="48dp">
+                    <ImageView android:id="@+id/playback_channel_icon" android:layout_width="32dp" android:layout_height="32dp" android:background="@drawable/playback_channel_placeholder" android:contentDescription="@null" android:scaleType="centerCrop" android:layout_marginEnd="8dp" />
+                    <com.google.android.material.button.MaterialButton app:iconTint="#0F0F0F" android:id="@+id/playback_chip_subscribe" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="wrap_content" android:layout_height="32dp" android:insetTop="0dp" android:insetBottom="0dp" android:minWidth="0dp" android:paddingStart="10dp" android:paddingLeft="10dp" android:paddingEnd="10dp" android:paddingRight="10dp" android:text="Đăng ký" android:textColor="#FFFFFF" android:textSize="12sp" android:minHeight="32dp" android:textAllCaps="false" android:layout_marginStart="4dp" android:layout_marginLeft="4dp" android:layout_marginEnd="4dp" android:layout_marginRight="4dp" app:cornerRadius="16dp" app:strokeWidth="0dp" app:backgroundTint="#0F0F0F" android:letterSpacing="0" app:iconSize="18dp" app:iconPadding="6dp" />
+                    <LinearLayout android:layout_width="wrap_content" android:layout_height="32dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="@drawable/nm7_action_pill" android:layout_marginStart="8dp" android:layout_marginEnd="4dp">
+                        <com.google.android.material.button.MaterialButton android:textColor="#0F0F0F" android:id="@+id/playback_chip_like" style="@style/Widget.MaterialComponents.Button.OutlinedButton.Icon" android:layout_width="wrap_content" android:layout_height="32dp" android:layout_marginStart="0dp" android:layout_marginLeft="0dp" android:layout_marginEnd="0dp" android:layout_marginRight="0dp" android:insetTop="0dp" android:insetBottom="0dp" android:minWidth="0dp" android:contentDescription="@string/action_like" app:icon="@drawable/playback_ic_like" app:iconGravity="textStart" app:iconPadding="6dp" app:iconSize="18dp" app:iconTint="#0F0F0F" android:minHeight="32dp" android:textAllCaps="false" android:paddingStart="10dp" android:paddingEnd="10dp" app:cornerRadius="16dp" app:strokeWidth="0dp" app:backgroundTint="#00000000" android:textSize="12sp" android:letterSpacing="0" android:paddingLeft="10dp" android:paddingRight="10dp" />
+                        <View android:layout_width="1dp" android:layout_height="20dp" android:background="#DADADA" />
+                        <com.google.android.material.button.MaterialButton android:textColor="#0F0F0F" android:id="@+id/playback_chip_dislike" style="@style/Widget.MaterialComponents.Button.OutlinedButton.Icon" android:layout_width="wrap_content" android:layout_height="32dp" android:layout_marginStart="0dp" android:layout_marginLeft="0dp" android:layout_marginEnd="0dp" android:layout_marginRight="0dp" android:insetTop="0dp" android:insetBottom="0dp" android:minWidth="0dp" android:contentDescription="@string/action_dislike" app:icon="@drawable/playback_ic_dislike" app:iconGravity="textStart" app:iconPadding="6dp" app:iconSize="18dp" app:iconTint="#0F0F0F" android:minHeight="32dp" android:textAllCaps="false" android:paddingStart="10dp" android:paddingEnd="10dp" app:cornerRadius="16dp" app:strokeWidth="0dp" app:backgroundTint="#00000000" android:textSize="12sp" android:letterSpacing="0" android:paddingLeft="10dp" android:paddingRight="10dp" />
+                    </LinearLayout>
+                    <com.google.android.material.button.MaterialButton android:textColor="#0F0F0F" android:id="@+id/playback_chip_share" style="@style/Widget.MaterialComponents.Button.OutlinedButton.Icon" android:layout_width="42dp" android:layout_height="32dp" android:layout_marginStart="4dp" android:layout_marginLeft="4dp" android:layout_marginEnd="4dp" android:layout_marginRight="4dp" android:insetTop="0dp" android:insetBottom="0dp" android:minWidth="0dp" android:contentDescription="@string/share_link" app:icon="@drawable/playback_ic_share" app:iconGravity="textStart" app:iconPadding="6dp" app:iconSize="18dp" app:iconTint="#0F0F0F" android:minHeight="32dp" android:textAllCaps="false" android:paddingStart="10dp" android:paddingEnd="10dp" app:cornerRadius="16dp" app:strokeWidth="0dp" app:backgroundTint="#F1F1F1" android:text="" android:textSize="12sp" android:letterSpacing="0" android:paddingLeft="10dp" android:paddingRight="10dp" />
+                    <com.google.android.material.button.MaterialButton android:textColor="#0F0F0F" android:id="@+id/playback_chip_playlist" style="@style/Widget.MaterialComponents.Button.OutlinedButton.Icon" android:layout_width="wrap_content" android:layout_height="32dp" android:layout_marginStart="4dp" android:layout_marginLeft="4dp" android:layout_marginEnd="4dp" android:layout_marginRight="4dp" android:insetTop="0dp" android:insetBottom="0dp" android:minWidth="0dp" android:contentDescription="@string/action_playlist_add" app:icon="@drawable/playback_ic_bookmark" app:iconGravity="textStart" app:iconPadding="6dp" app:iconSize="18dp" app:iconTint="#0F0F0F" android:minHeight="32dp" android:textAllCaps="false" android:paddingStart="10dp" android:paddingEnd="10dp" app:cornerRadius="16dp" app:strokeWidth="0dp" app:backgroundTint="#F1F1F1" android:text="Lưu" android:textSize="12sp" android:letterSpacing="0" android:paddingLeft="10dp" android:paddingRight="10dp" />
+                    <com.google.android.material.button.MaterialButton android:textColor="#0F0F0F" android:id="@+id/playback_chip_quality" style="@style/Widget.MaterialComponents.Button.OutlinedButton.Icon" android:layout_width="48dp" android:layout_height="32dp" android:layout_marginStart="4dp" android:layout_marginLeft="4dp" android:layout_marginEnd="4dp" android:layout_marginRight="4dp" android:insetTop="0dp" android:insetBottom="0dp" android:minWidth="0dp" android:contentDescription="@string/playback_quality" app:icon="@drawable/playback_ic_hd" app:iconGravity="textStart" app:iconPadding="6dp" app:iconSize="18dp" app:iconTint="#0F0F0F" android:minHeight="32dp" android:textAllCaps="false" android:paddingStart="10dp" android:paddingEnd="10dp" app:cornerRadius="16dp" app:strokeWidth="0dp" app:backgroundTint="#F1F1F1" android:textSize="12sp" android:letterSpacing="0" android:paddingLeft="10dp" android:paddingRight="10dp" />
+                    <com.google.android.material.button.MaterialButton android:textColor="#0F0F0F" android:id="@+id/playback_chip_speed" style="@style/Widget.MaterialComponents.Button.OutlinedButton.Icon" android:layout_width="48dp" android:layout_height="32dp" android:layout_marginStart="4dp" android:layout_marginLeft="4dp" android:layout_marginEnd="4dp" android:layout_marginRight="4dp" android:insetTop="0dp" android:insetBottom="0dp" android:minWidth="0dp" android:contentDescription="@string/action_video_speed" app:icon="@drawable/playback_ic_speed" app:iconGravity="textStart" app:iconPadding="6dp" app:iconSize="18dp" app:iconTint="#0F0F0F" android:minHeight="32dp" android:textAllCaps="false" android:paddingStart="10dp" android:paddingEnd="10dp" app:cornerRadius="16dp" app:strokeWidth="0dp" app:backgroundTint="#F1F1F1" android:textSize="12sp" android:letterSpacing="0" android:paddingLeft="10dp" android:paddingRight="10dp" />
+                    <com.google.android.material.button.MaterialButton android:textColor="#0F0F0F" android:id="@+id/playback_chip_more" style="@style/Widget.MaterialComponents.Button.OutlinedButton.Icon" android:layout_width="48dp" android:layout_height="32dp" android:layout_marginStart="4dp" android:layout_marginLeft="4dp" android:layout_marginEnd="4dp" android:layout_marginRight="4dp" android:insetTop="0dp" android:insetBottom="0dp" android:minWidth="0dp" android:contentDescription="@string/playback_more" app:icon="@drawable/playback_ic_more" app:iconGravity="textStart" app:iconPadding="6dp" app:iconSize="18dp" app:iconTint="#0F0F0F" android:minHeight="32dp" android:textAllCaps="false" android:paddingStart="10dp" android:paddingEnd="10dp" app:cornerRadius="16dp" app:strokeWidth="0dp" app:backgroundTint="#F1F1F1" android:textSize="12sp" android:letterSpacing="0" android:paddingLeft="10dp" android:paddingRight="10dp" />
+                </LinearLayout>
+            </HorizontalScrollView>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="8dp" android:background="@color/playback_divider" />
+            <LinearLayout android:id="@+id/playback_description_card" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="?android:attr/selectableItemBackground" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="12dp" android:paddingLeft="12dp" android:paddingTop="10dp" android:paddingEnd="8dp" android:paddingRight="8dp" android:paddingBottom="10dp" android:visibility="gone">
+                <TextView android:id="@+id/playback_description_preview" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:ellipsize="end" android:maxLines="2" android:textColor="#606060" android:textSize="13sp" />
+                <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginStart="8dp" android:layout_marginLeft="8dp" android:contentDescription="@null" android:src="@drawable/playback_ic_expand" />
+            </LinearLayout>
+            <View android:id="@+id/playback_description_divider" android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/playback_divider" android:visibility="gone" />
+            <LinearLayout android:id="@+id/playback_comments_card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="12dp" android:orientation="vertical" android:padding="12dp" android:background="@drawable/nm7_comment_card" android:visibility="gone" android:contentDescription="Mở bình luận" android:layout_marginTop="4dp" android:layout_marginBottom="14dp">
+                <TextView android:id="@+id/nm7_comments_heading" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Bình luận" android:textColor="#0F0F0F" android:textStyle="bold" android:textSize="14sp" />
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="10dp">
+                    <ImageView android:id="@+id/nm7_comment_avatar" android:layout_width="28dp" android:layout_height="28dp" android:background="@drawable/playback_channel_placeholder" android:contentDescription="@null" />
+                    <TextView android:id="@+id/nm7_comment_preview" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="10dp" android:background="@android:color/transparent" android:padding="0dp" android:text="Đang tải bình luận…" android:textColor="#606060" android:maxLines="2" android:ellipsize="end" android:textSize="12sp" />
+                </LinearLayout>
+            </LinearLayout>
+            <View android:id="@+id/playback_comments_divider" android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/playback_divider" android:visibility="gone" />
+        </LinearLayout>
+        <androidx.recyclerview.widget.RecyclerView android:id="@+id/playback_suggestions" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:clipToPadding="false" android:paddingTop="4dp" android:paddingBottom="8dp" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/playback_details_sheet" android:layout_width="0dp" android:layout_height="0dp" android:background="#FFFFFF" android:clickable="true" android:focusable="true" android:orientation="vertical" android:visibility="gone" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toBottomOf="@id/playback_player_container">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="12dp" android:paddingLeft="12dp" android:paddingEnd="4dp" android:paddingRight="4dp">
+            <TextView android:id="@+id/playback_details_title" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:ellipsize="end" android:maxLines="1" android:textColor="#0F0F0F" android:textSize="18sp" android:textStyle="bold" />
+            <ImageButton android:id="@+id/playback_details_close" android:layout_width="44dp" android:layout_height="44dp" android:background="?android:attr/selectableItemBackgroundBorderless" android:contentDescription="@string/playback_details_close" android:padding="10dp" android:src="@drawable/playback_ic_close" android:tint="#0F0F0F" />
+        </LinearLayout>
+        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/playback_divider" />
+        <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+            <ScrollView android:id="@+id/playback_details_description_scroll" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone">
+                <TextView android:id="@+id/playback_details_description" android:layout_width="match_parent" android:layout_height="wrap_content" android:autoLink="web" android:padding="12dp" android:textColor="#606060" android:textColorLink="#0F0F0F" android:textSize="14sp" />
+            </ScrollView>
+            <androidx.recyclerview.widget.RecyclerView android:id="@+id/playback_details_comments" android:layout_width="match_parent" android:layout_height="match_parent" android:clipToPadding="false" android:paddingTop="4dp" android:paddingBottom="8dp" android:visibility="gone" />
+            <TextView android:id="@+id/playback_details_message" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="center" android:gravity="center" android:padding="24dp" android:textColor="#606060" android:textSize="14sp" android:visibility="gone" />
+            <ProgressBar android:id="@+id/playback_details_progress" android:layout_width="40dp" android:layout_height="40dp" android:layout_gravity="center" android:indeterminate="true" android:visibility="gone" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <!-- NM7 1.10.76: live chat occupies the portrait area below the 16:9 player. -->
+    <FrameLayout
+        android:id="@+id/nm7_live_chat_panel"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="#FAFAFA"
+        android:visibility="gone"
+        android:elevation="8dp"
+        android:paddingBottom="64dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/playback_player_container">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:background="#FFFFFF"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="16dp"
+                android:paddingEnd="8dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="center_vertical"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Trò chuyện trực tiếp"
+                        android:textColor="#111111"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Tin nhắn hàng đầu"
+                        android:textColor="#777777"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/nm7_live_chat_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="10dp"
+                    android:text="Đang kết nối..."
+                    android:textColor="#777777"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/nm7_live_chat_close"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:text="×"
+                    android:textColor="#222222"
+                    android:textSize="32sp"
+                    android:textStyle="normal"
+                    android:contentDescription="Đóng trò chuyện trực tiếp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#E5E5E5" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/nm7_live_chat_list"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:clipToPadding="false"
+                android:paddingTop="4dp"
+                android:paddingBottom="8dp"
+                android:scrollbars="vertical" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp">
+
+                <EditText
+                    android:id="@+id/nm7_live_chat_input"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_weight="1"
+                    android:background="#F0F0F0"
+                    android:hint="Trò chuyện..."
+                    android:imeOptions="actionSend"
+                    android:inputType="textCapSentences"
+                    android:maxLength="200"
+                    android:maxLines="2"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:textColor="#111111"
+                    android:textColorHint="#777777"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/nm7_live_chat_send"
+                    android:layout_width="64dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="8dp"
+                    android:background="#F1F1F1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:text="Gửi"
+                    android:textColor="#065FD4"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

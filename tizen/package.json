@@ -1,0 +1,1 @@
+{"name":"nm7-iptv-tizen","version":"0.1.0","private":true,"scripts":{"test":"node tests/m3u.test.js"}}

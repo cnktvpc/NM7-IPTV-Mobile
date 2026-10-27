@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="true" />
+    <application android:name="${applicationClass}" android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:appComponentFactory="androidx.core.app.CoreComponentFactory" android:icon="@drawable/nm7_app_icon" android:roundIcon="@drawable/nm7_app_icon" android:label="@string/app_name" android:supportsRtl="true" android:theme="@style/Theme.IptvPlayer" android:usesCleartextTraffic="true" android:resizeableActivity="true" tools:replace="android:allowBackup,android:theme,android:fullBackupContent,android:dataExtractionRules,android:appComponentFactory">
+        <service android:name=".BackgroundPlaybackService" android:exported="false" android:foregroundServiceType="mediaPlayback" android:stopWithTask="false" />
+        <receiver android:name=".SleepTimerReceiver" android:exported="false" />
+        <provider android:name=".MobileInlinePlayerProviderV2" android:authorities="${applicationId}.mobileinline" android:exported="false" android:initOrder="90" />
+        <provider android:name=".MobileEdgeGestureProvider" android:authorities="${applicationId}.edgegestures" android:exported="false" android:initOrder="85" />
+        <provider android:name=".MobileGroupSwipeProvider" android:authorities="${applicationId}.groupswipe" android:exported="false" android:initOrder="80" />
+        <provider android:name=".MobileNowPlayingHighlightProvider" android:authorities="${applicationId}.nowplayinghighlight" android:exported="false" android:initOrder="75" />
+        <activity android:name=".PlayerActivity" android:exported="false" android:configChanges="keyboardHidden|orientation|screenSize" />
+        <activity android:name=".YoutubeActivity" android:exported="false" android:configChanges="keyboardHidden|orientation|screenSize" />
+        <activity android:name=".SmartTubeHomeActivity" android:exported="false" android:launchMode="singleTop" android:configChanges="keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|layoutDirection" />
+
+        <!-- SmartTube phone UI only. -->
+        <activity android:name="com.liskovsoft.smartyoutubetv2.droid.ui.browse.BrowseActivity" android:launchMode="singleTop" android:theme="@style/Theme.SmartTubeDroid" />
+        <activity android:name="com.liskovsoft.smartyoutubetv2.droid.ui.splash.SplashActivity" android:theme="@style/Theme.SmartTubeDroid.Splash" />
+        <activity android:name="com.liskovsoft.smartyoutubetv2.droid.ui.playback.PlaybackActivity" android:theme="@style/Theme.SmartTubeDroid.Player" android:launchMode="singleTop" android:enableOnBackInvokedCallback="true" />
+        <activity android:name="com.liskovsoft.smartyoutubetv2.droid.ui.dialogs.AppDialogActivity" android:theme="@style/Theme.SmartTubeDroid.Dialog" />
+        <activity android:name="com.liskovsoft.smartyoutubetv2.droid.ui.search.SearchActivity" android:theme="@style/Theme.SmartTubeDroid" />
+        <activity android:name="com.liskovsoft.smartyoutubetv2.droid.ui.channel.ChannelActivity" android:theme="@style/Theme.SmartTubeDroid" />
+        <activity android:name="com.liskovsoft.smartyoutubetv2.droid.ui.channeluploads.ChannelUploadsActivity" android:theme="@style/Theme.SmartTubeDroid" />
+        <activity android:name="com.liskovsoft.smartyoutubetv2.droid.ui.signin.SignInActivity" android:theme="@style/Theme.SmartTubeDroid" />
+        <activity android:name="com.liskovsoft.smartyoutubetv2.droid.ui.adddevice.AddDeviceActivity" android:theme="@style/Theme.SmartTubeDroid" />
+        <activity android:name="com.liskovsoft.smartyoutubetv2.droid.ui.webbrowser.WebBrowserActivity" android:theme="@style/Theme.SmartTubeDroid" />
+
+        <activity android:name=".MainActivity" android:launchMode="standard" android:alwaysRetainTaskState="true" android:configChanges="keyboardHidden|orientation|screenSize" android:windowSoftInputMode="stateAlwaysHidden|adjustPan" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NM7 IPTV</string>
+    <string name="playlist_url_hint">Dán URL playlist hoặc luồng phát</string>
+    <string name="load_url">Tải URL</string>
+    <string name="open_file">Mở tệp</string>
+    <string name="search_hint">Tìm theo tên, nhóm hoặc URL</string>
+    <string name="select_all">Chọn đang lọc</string>
+    <string name="select_none">Bỏ chọn đang lọc</string>
+    <string name="export_clean">Xuất M3U sạch</string>
+    <string name="all_groups">Tất cả nhóm</string>
+    <string name="source_none">Nguồn: chưa mở playlist</string>
+</resources>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/mainRoot" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="6dp" android:background="@color/navy">
+    <ImageView android:layout_width="match_parent" android:layout_height="42dp"
+        android:src="@drawable/nm7_main_logo" android:scaleType="centerInside"
+        android:adjustViewBounds="true" android:contentDescription="Logo Phuongnm7 TV" />
+    <!-- Keep the section controls as non-rendered anchors. Mobile navigation exposes
+         the same sections through "Tùy chọn IPTV", avoiding a second button row. -->
+    <LinearLayout android:id="@+id/quickSectionControls" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone">
+        <Button android:id="@+id/btnAllChannels" android:layout_width="1dp" android:layout_height="1dp" android:text="Tất cả" />
+        <Button android:id="@+id/btnFavorites" android:layout_width="1dp" android:layout_height="1dp" android:text="★ Yêu thích" />
+        <Button android:id="@+id/btnRecent" android:layout_width="1dp" android:layout_height="1dp" android:text="◷ Gần đây" />
+    </LinearLayout>
+    <ScrollView android:id="@+id/importPanel" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/panel">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="10dp" android:orientation="vertical">
+            <EditText android:id="@+id/inputUrl" android:layout_width="match_parent" android:layout_height="48dp" android:inputType="textUri" android:singleLine="true" android:importantForAutofill="no" android:hint="@string/playlist_url_hint" android:textSize="14sp" android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" android:backgroundTint="@color/accent" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="44dp" android:layout_marginTop="6dp">
+                <Button android:id="@+id/btnLoadUrl" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:background="@drawable/button_primary" android:text="@string/load_url" android:textSize="12sp" android:textAllCaps="false" android:textColor="@color/navy" />
+                <Button android:id="@+id/btnOpenFile" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:layout_marginStart="6dp" android:background="@drawable/button_secondary" android:text="@string/open_file" android:textSize="12sp" android:textAllCaps="false" android:textColor="@color/text_primary" />
+            </LinearLayout>
+            <Button android:id="@+id/btnPlayUrl" android:layout_width="match_parent" android:layout_height="44dp" android:layout_marginTop="6dp" android:background="@drawable/button_secondary" android:text="▶ Phát URL trực tiếp" android:textAllCaps="false" android:textColor="@color/accent" />
+        </LinearLayout>
+    </ScrollView>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="4dp">
+        <EditText android:id="@+id/inputSearch" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:singleLine="true" android:hint="Tìm kênh, nhóm hoặc URL…" android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" android:backgroundTint="@color/accent" />
+        <Button android:id="@+id/btnClearFilters" android:layout_width="68dp" android:layout_height="44dp" android:layout_marginStart="6dp" android:background="@drawable/button_secondary" android:text="Bỏ lọc" android:textSize="12sp" android:textAllCaps="false" android:textColor="@color/text_primary" />
+        <Button android:id="@+id/btnReloadUrl" android:layout_width="74dp" android:layout_height="44dp" android:layout_marginStart="6dp" android:background="@drawable/button_secondary" android:text="↻ Tải lại" android:textSize="11sp" android:textAllCaps="false" android:textColor="@color/accent" />
+        <Button android:id="@+id/btnIptvOptions" android:layout_width="48dp" android:layout_height="44dp" android:layout_marginStart="6dp" android:background="@drawable/button_secondary" android:text="⚙" android:contentDescription="Tùy chọn IPTV" android:textSize="18sp" android:textAllCaps="false" android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <HorizontalScrollView android:layout_width="match_parent" android:layout_height="50dp" android:scrollbars="none"><LinearLayout android:id="@+id/groupRow" android:layout_width="wrap_content" android:layout_height="match_parent" android:gravity="center_vertical" android:orientation="horizontal" /></HorizontalScrollView>
+    <ProgressBar android:id="@+id/progress" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="3dp" android:visibility="gone" />
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+        <vn.phuong.iptvplayer.Nm7SuperOkGroupSwipeListView android:id="@+id/listChannels" android:layout_width="match_parent" android:layout_height="match_parent" android:divider="@android:color/transparent" android:dividerHeight="5dp" android:listSelector="@drawable/list_focus" />
+        <TextView android:id="@+id/txtEmpty" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:padding="20dp" android:text="Chưa có kênh phù hợp." android:textColor="@color/text_secondary" android:visibility="gone" />
+    </FrameLayout>
+</LinearLayout>

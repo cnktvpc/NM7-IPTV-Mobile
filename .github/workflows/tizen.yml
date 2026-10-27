@@ -1,0 +1,50 @@
+name: Validate Samsung Tizen TV app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tizen/**"
+      - ".github/workflows/tizen.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout private source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Validate JavaScript and M3U parser
+        run: |
+          node --check tizen/js/app.js
+          node --check tizen/js/m3u.js
+          node tizen/tests/m3u.test.js
+      - name: Validate Tizen config
+        run: python3 -c "import xml.etree.ElementTree as E; E.parse('tizen/config.xml')"
+      - name: Reuse Nm7 application icon
+        run: cp app/src/main/res/mipmap-xxxhdpi/ic_launcher.png tizen/icon.png
+      - name: Check required application files
+        run: |
+          test -s tizen/index.html
+          test -s tizen/css/app.css
+          test -s tizen/icon.png
+          grep -q 'required_version="2.3"' tizen/config.xml
+          grep -q 'application/avplayer' tizen/index.html
+      - name: Package source for Tizen Studio
+        run: |
+          mkdir -p dist
+          cd tizen
+          zip -r ../dist/Nm7-IPTV-Tizen-0.1.0-source.zip . -x 'tests/*' 'package.json'
+      - name: Upload Tizen Studio source
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: Nm7-IPTV-Tizen-0.1.0-source
+          path: dist/
+          retention-days: 30
+          if-no-files-found: error

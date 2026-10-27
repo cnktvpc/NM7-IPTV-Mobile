@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NM7 Mobile YouTube browse chrome: visually aligned with the supplied
+     YouTube phone reference while preserving SmartTube section/content IDs. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/browse_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#FFFFFF"
+    android:paddingBottom="64dp">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/browse_app_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FFFFFF"
+        android:elevation="2dp">
+
+        <!-- YouTube-like top app bar: wordmark on the left, create/search on the right. -->
+        <LinearLayout
+            android:id="@+id/nm7_youtube_header"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="4dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/nm7_youtube_wordmark"
+                android:layout_width="76dp"
+                android:layout_height="30dp"
+                android:src="@drawable/nm7_youtube_wordmark"
+                android:scaleType="fitCenter"
+                android:adjustViewBounds="true"
+                android:contentDescription="YouTube" />
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <ImageButton
+                android:id="@+id/nm7_video"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/nm7_video_camera"
+                android:tint="#0F0F0F"
+                android:contentDescription="Tạo video" />
+
+            <ImageButton
+                android:id="@+id/nm7_search"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/browse_ic_search"
+                android:tint="#0F0F0F"
+                android:contentDescription="Tìm kiếm" />
+        </LinearLayout>
+
+        <!-- Match the reference chip strip: fixed Explore affordance + dynamic SmartTube sections. -->
+        <HorizontalScrollView
+            android:id="@+id/nm7_chip_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:scrollbars="none"
+            android:fillViewport="false"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ImageButton
+                    android:id="@+id/nm7_explore"
+                    android:layout_width="48dp"
+                    android:layout_height="40dp"
+                    android:layout_marginEnd="4dp"
+                    android:background="@drawable/nm7_explore_bg"
+                    android:src="@drawable/nm7_explore"
+                    android:tint="#0F0F0F"
+                    android:contentDescription="Khám phá" />
+
+                <com.google.android.material.tabs.TabLayout
+                    android:id="@+id/browse_tabs"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:clipToPadding="false"
+                    app:tabMode="scrollable"
+                    app:tabGravity="center"
+                    app:tabIndicatorHeight="0dp"
+                    app:tabBackground="@drawable/nm7_tab_bg"
+                    app:tabTextAppearance="@style/Nm7YoutubeChipText"
+                    app:tabTextColor="#0F0F0F"
+                    app:tabSelectedTextColor="#FFFFFF"
+                    app:tabMinWidth="0dp"
+                    app:tabPaddingStart="14dp"
+                    app:tabPaddingEnd="14dp"
+                    app:tabRippleColor="#E5E5E5" />
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <!-- Retained as hidden compatibility anchors for existing search/account handlers. -->
+        <ImageButton
+            android:id="@+id/nm7_voice"
+            android:layout_width="1dp"
+            android:layout_height="1dp"
+            android:visibility="gone" />
+        <ImageButton
+            android:id="@+id/nm7_account"
+            android:layout_width="1dp"
+            android:layout_height="1dp"
+            android:visibility="gone" />
+
+        <!-- Retained as a hidden compatibility anchor for menu/refresh actions. -->
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/browse_toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <FrameLayout
+        android:id="@+id/browse_content"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/browse_grid"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="12dp"
+            android:scrollbars="vertical"
+            android:visibility="gone" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/browse_rows"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingTop="8dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="8dp"
+            android:scrollbars="vertical"
+            android:visibility="gone" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/browse_settings"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingTop="8dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="8dp"
+            android:scrollbars="vertical"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/browse_error_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="32dp"
+            android:visibility="gone">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/browse_error_message"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:textAppearance="?attr/textAppearanceBody1" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/browse_error_action"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/browse_progress"
+            style="?android:attr/progressBarStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:indeterminate="true"
+            android:visibility="gone" />
+    </FrameLayout>
+</LinearLayout>

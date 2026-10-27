@@ -1,0 +1,48 @@
+name: Patch SmartTube build compatibility
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          token: ${{ github.token }}
+          submodules: recursive
+
+      - name: Patch build workflow
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/android.yml')
+          text = p.read_text()
+          marker = '# SMARTTUBE_COMPAT_PATCH_V2'
+          if marker in text:
+              print('Compatibility patch already present')
+              raise SystemExit(0)
+          needle = '''      - name: Patch SmartTube unavailable Coroutines version\n'''
+          insert = '''      - name: Patch SmartTube legacy OkHttp API\n        run: |\n          set -euxo pipefail\n          python3 - <<'PY2'\n          from pathlib import Path\n          p = Path('third_party/SmartTube-droid/SharedModules/sharedutils/src/main/java/com/liskovsoft/sharedutils/okhttp/DohProviders.kt')\n          if p.is_file():\n              text = p.read_text()\n              text = text.replace('import okhttp3.HttpUrl\\n', 'import okhttp3.HttpUrl\\nimport okhttp3.toHttpUrlOrNull\\n')\n              text = text.replace('return HttpUrl.parse(s) ?: throw NullPointerException("unable to parse url")', 'return s.toHttpUrlOrNull() ?: throw NullPointerException("unable to parse url")')\n              p.write_text(text)\n              print('Patched DohProviders.kt HttpUrl.parse -> toHttpUrlOrNull')\n          else:\n              raise SystemExit(f'Missing expected file: {p}')\n          PY2\n\n      - name: Patch SmartTube legacy formatted strings\n        run: |\n          set -euxo pipefail\n          python3 - <<'PY2'\n          from pathlib import Path\n          import re\n          root = Path('third_party/SmartTube-droid')\n          wanted = {'auto_frame_rate_applying', 'proxy_test_error', 'proxy_test_start', 'proxy_test_status'}\n          rx = re.compile(r'(<string\\b[^>]*\\bname=["\\'](?:' + '|'.join(map(re.escape, wanted)) + r')["\\'][^>]*>)(.*?)(</string>)', re.S)\n          token = re.compile(r'%(?![0-9]+\\$)([sdif])')\n          changed = 0\n          for p in root.rglob('*.xml'):\n              if '.git' in p.parts:\n                  continue\n              text = p.read_text(errors='ignore')\n              def repl(m):\n                  nonlocal changed\n                  body = m.group(2)\n                  idx = 0\n                  def tok(t):\n                      nonlocal idx\n                      idx += 1\n                      return f'%{idx}${t.group(1)}'\n                  new = token.sub(tok, body)\n                  if new != body:\n                      changed += 1\n                  return m.group(1) + new + m.group(3)\n              new = rx.sub(repl, text)\n              if new != text:\n                  p.write_text(new)\n          print('Patched positional SmartTube resource substitutions:', changed)\n          PY2\n\n'''
+          if needle not in text:
+              raise SystemExit('Workflow insertion point not found')
+          text = text.replace(needle, insert + marker + '\n' + needle, 1)
+          p.write_text(text)
+          PY
+
+      - name: Commit and push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/android.yml
+          if git diff --cached --quiet; then
+            echo 'No changes to commit'
+            exit 0
+          fi
+          git commit -m 'fix(ci): patch SmartTube legacy resources and okhttp API'
+          git push origin HEAD:${GITHUB_REF_NAME}

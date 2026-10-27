@@ -1,0 +1,80 @@
+name: Build NM7 IPTV iOS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nm7-iptv-ios-build
+  cancel-in-progress: true
+
+jobs:
+  build-ios:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate app icon
+        run: python3 ios/tools/generate_icon.py
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Build iPhone and iPad app for simulator
+        run: |
+          xcodebuild \
+            -project ios/NM7IPTV.xcodeproj \
+            -scheme NM7IPTV \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
+
+      - name: Build unsigned device app
+        run: |
+          rm -rf ios/build-device ios/dist
+          xcodebuild \
+            -project ios/NM7IPTV.xcodeproj \
+            -scheme NM7IPTV \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath ios/build-device \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            clean build
+
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_PATH="$(find ios/build-device/Build/Products/Release-iphoneos -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$APP_PATH"
+          mkdir -p ios/dist/Payload
+          cp -R "$APP_PATH" ios/dist/Payload/
+          (cd ios/dist && zip -qry NM7-IPTV-iOS-1.0.0-unsigned.ipa Payload)
+          shasum -a 256 ios/dist/NM7-IPTV-iOS-1.0.0-unsigned.ipa | tee ios/dist/SHA256SUMS.txt
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: NM7-IPTV-iOS-1.0.0-unsigned-IPA
+          path: |
+            ios/dist/NM7-IPTV-iOS-1.0.0-unsigned.ipa
+            ios/dist/SHA256SUMS.txt
+          retention-days: 30
+          if-no-files-found: error

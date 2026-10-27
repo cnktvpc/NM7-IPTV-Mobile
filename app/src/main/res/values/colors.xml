@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="navy">#07111F</color>
+    <color name="surface">#0E1C2E</color>
+    <color name="surface_alt">#14263C</color>
+    <color name="text_primary">#F5F8FC</color>
+    <color name="text_secondary">#9FB3C8</color>
+    <color name="accent">#37D6A6</color>
+    <color name="accent_dark">#1BA77E</color>
+    <color name="warning">#FFBD59</color>
+    <color name="live_accent">#FF1744</color>
+    <color name="live_surface">#D914263C</color>
+</resources>

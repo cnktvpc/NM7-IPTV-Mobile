@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:layout_marginBottom="6dp" android:background="@drawable/quick_channel_row"
+    android:gravity="center_vertical" android:minHeight="62dp" android:orientation="horizontal"
+    android:paddingHorizontal="12dp" android:paddingVertical="7dp">
+    <TextView android:id="@+id/txtQuickNumber" android:layout_width="42dp"
+        android:layout_height="42dp" android:background="@drawable/channel_badge"
+        android:gravity="center" android:textColor="@color/accent" android:textStyle="bold" />
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+        android:layout_marginStart="10dp" android:layout_weight="1" android:orientation="vertical">
+        <TextView android:id="@+id/txtQuickName" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1"
+            android:textColor="@color/text_primary" android:textSize="15sp" android:textStyle="bold" />
+        <TextView android:id="@+id/txtQuickGroup" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1"
+            android:textColor="@color/accent" android:textSize="11sp" />
+    </LinearLayout>
+    <TextView android:layout_width="30dp" android:layout_height="42dp" android:gravity="center"
+        android:text="▶" android:textColor="@color/accent" android:textSize="17sp" />
+</LinearLayout>

@@ -1,0 +1,60 @@
+name: Cleanup old workflow runs
+
+# Run it by hand from the Actions tab. The runs it clears only appear when a
+# release is published manually, so there is nothing for a schedule to do on
+# almost every day.
+on:
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    # Upstream gates this on the repo not being a fork, so it never deletes history
+    # in anyone's fork. This repo is a fork of theirs, which left the job skipping
+    # every night, so match on the owner instead of the fork flag.
+    if: github.repository_owner == 'systematiq-one'
+    permissions:
+      actions: write
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const KEEP = 0;
+            const workflowNames = ["VirusTotal Scan", "Cleanup old workflow runs"];
+
+            // Get workflow ID
+            const workflows = await github.rest.actions.listRepoWorkflows({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+
+            for (const name of workflowNames) {
+              const wf = workflows.data.workflows.find(w => w.name === name);
+              if (!wf) {
+                core.info(`Workflow "${name}" not found, skipping`);
+                continue;
+              }
+
+              // List runs
+              const runs = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: wf.id,
+                per_page: 100
+              });
+
+              const toDelete = runs.data.workflow_runs.slice(KEEP);
+              core.info(`Deleting ${toDelete.length} old runs`);
+
+              for (const run of toDelete) {
+                try {
+                  await github.rest.actions.deleteWorkflowRun({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: run.id
+                  });
+                } catch (e) {
+                  core.info(`Skip run ${run.id}: ${e.message}`);
+                }
+              } 
+            }

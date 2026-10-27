@@ -1,0 +1,356 @@
+name: Build private Android APK
+# NM7 mobile UI rebuild trigger
+# Rebuild after v77 import fix
+# Trigger after literal-newline correction
+# Trigger after OkHttp resolution fix
+
+on:
+  push:
+    branches: [main, "fix/mobile-*", "feature/mobile-youtube-smarttube", "build/youtube-miniplayer-20261020"]
+    paths:
+      - "app/**"
+      - "smarttube/**"
+      - "third_party/**"
+      - "*.gradle.kts"
+      - ".gitmodules"
+      - "gradle.properties"
+      - "gradle/**"
+      - "tools/**"
+      - "progress.md"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iptv-private-android-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # This branch is built only by android-mobile-final.yml with the shared pinned patch.
+    if: github.event.repository.private == true && github.ref != 'refs/heads/fix/mobile-1.10.26-sleep-timer-icon'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - name: Checkout private source and SmartTube submodules
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Restore SmartTube nested dependencies
+        run: |
+          set -euxo pipefail
+          if [ ! -d third_party/SmartTube-droid/.git ]; then
+            rm -rf third_party/SmartTube-droid
+            git clone --depth 1 --recurse-submodules https://github.com/systematiq-one/SmartTube-droid.git third_party/SmartTube-droid
+          fi
+          git -C third_party/SmartTube-droid submodule sync --recursive
+          git -C third_party/SmartTube-droid submodule update --init --force --recursive
+          test -f third_party/SmartTube-droid/SharedModules/constants.gradle
+          test -f third_party/SmartTube-droid/MediaServiceCore/core_settings.gradle
+
+      - name: Patch SmartTube legacy Gradle modules
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root=Path('third_party/SmartTube-droid'); changed=[]
+          for p in sorted(root.rglob('build.gradle')):
+              if '/gradle/' in p.as_posix(): continue
+              text=p.read_text(errors='ignore'); original=text
+              manifest=p.parent/'src/main/AndroidManifest.xml'; pkg=None
+              if manifest.is_file():
+                  m=re.search(r'\bpackage\s*=\s*["\']([^"\']+)["\']',manifest.read_text(errors='ignore'))
+                  if m: pkg=m.group(1)
+              if re.search(r'\bandroid\s*\{',text):
+                  if pkg and not re.search(r'\bnamespace\s*[= ]',text): text=re.sub(r'(\bandroid\s*\{)',r'\1\n    namespace "'+pkg+'"',text,count=1)
+                  if not re.search(r'\bcompileSdkVersion\s+[^\n]+',text) and not re.search(r'\bcompileSdk\s*[= ]',text): text=re.sub(r'(\bandroid\s*\{)',r'\1\n    compileSdkVersion project.properties.compileSdkVersion',text,count=1)
+                  dm=re.search(r'(?m)^(\s*)flavorDimensions\s+(.+)$',text)
+                  if dm:
+                      rhs=dm.group(2).strip()
+                      if '"device"' not in rhs and "'device'" not in rhs: text=text[:dm.start()]+dm.group(1)+'flavorDimensions '+rhs+', "device"'+text[dm.end():]
+                  else: text=re.sub(r'(\bandroid\s*\{)',r'\1\n    flavorDimensions "device"',text,count=1)
+                  if not re.search(r'\bmobile\s*\{\s*dimension\s+["\']device["\']',text,re.S): text=re.sub(r'(\bandroid\s*\{)',r'\1\n    productFlavors {\n        mobile { dimension "device" }\n    }',text,count=1)
+                  for flavor in ('stbeta','ststable','stfdroid'):
+                      text=re.sub(r'(?m)^(\s*)'+re.escape(flavor)+r'\s*\{\s*\}',lambda m,f=flavor:m.group(1)+f+' { dimension "default" }',text)
+                  text=re.sub(r'(?m)^(\s*)classifier\s+["\']([^"\']+)["\']\s*$',r"\1archiveClassifier.set('\2')",text)
+                  text=re.sub(r'(?m)^(\s*)classifier\s*=\s*["\']([^"\']+)["\']\s*$',r"\1archiveClassifier.set('\2')",text)
+              if text!=original: p.write_text(text); changed.append(str(p))
+          bad=[]
+          for p in root.rglob('build.gradle'):
+              t=p.read_text(errors='ignore')
+              for f in ('stbeta','ststable','stfdroid'):
+                  if re.search(r'(?m)^\s*'+re.escape(f)+r'\s*\{\s*\}',t): bad.append(f'{p}:{f}')
+          if bad: raise SystemExit('Unpatched legacy flavors: '+', '.join(bad))
+          assert any(x.endswith('filepicker-lib/build.gradle') for x in changed), 'filepicker classifier patch missing'
+          print('Patched SmartTube modules:',len(changed))
+          PY
+
+      - name: Patch SmartTube resource and manifest collisions
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('third_party/SmartTube-droid'); changed=[]
+          for p in root.rglob('*'):
+              if not p.is_file() or '.git' in p.parts: continue
+              try: text=p.read_text(errors='ignore')
+              except Exception: continue
+              if 'show_buffering' in text:
+                  new=text.replace('show_buffering','st_show_buffering')
+                  if new!=text: p.write_text(new); changed.append(str(p))
+          print('Renamed SmartTube legacy show_buffering references:',len(changed))
+          PY
+
+      - name: Patch SmartTube legacy OkHttp API
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('third_party/SmartTube-droid/SharedModules/sharedutils/src/main/java/com/liskovsoft/sharedutils/okhttp/DohProviders.kt')
+          if not p.is_file(): raise SystemExit(f'Missing expected file: {p}')
+          text=p.read_text()
+          text=text.replace('import okhttp3.toHttpUrlOrNull\n','')
+          text=text.replace('return s.toHttpUrlOrNull() ?: throw NullPointerException("unable to parse url")','return HttpUrl.get(s) ?: throw NullPointerException("unable to parse url")')
+          text=text.replace('return HttpUrl.parse(s) ?: throw NullPointerException("unable to parse url")','return HttpUrl.get(s) ?: throw NullPointerException("unable to parse url")')
+          p.write_text(text)
+          if 'HttpUrl.parse(' in text or 'toHttpUrlOrNull' in text: raise SystemExit('Unsupported URL parser remains')
+          print('Patched DohProviders.kt: HttpUrl.get')
+          PY
+
+      - name: Patch SmartTube legacy formatted strings
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root=Path('third_party/SmartTube-droid'); wanted={'auto_frame_rate_applying','proxy_test_error','proxy_test_start','proxy_test_status'}
+          sr=re.compile(r'(<string\b[^>]*\bname=["\']('+'|'.join(map(re.escape,wanted))+r')["\'][^>]*>)(.*?)(</string>)',re.S); tr=re.compile(r'%(?![0-9]+\$)([sdif])'); changed=0
+          for p in root.rglob('*.xml'):
+              if '.git' in p.parts: continue
+              text=p.read_text(errors='ignore')
+              def repl(m):
+                  body=m.group(3); i=[0]
+                  def tok(x): i[0]+=1; return f'%{i[0]}${x.group(1)}'
+                  return m.group(1)+tr.sub(tok,body)+m.group(4)
+              new=sr.sub(repl,text)
+              if new!=text: p.write_text(new); changed+=1
+          print('Patched formatted SmartTube string files:',changed)
+          PY
+
+      - name: Patch SmartTube unavailable Coroutines version
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root=Path('third_party/SmartTube-droid'); changed=0
+          for p in root.rglob('*'):
+              if not p.is_file() or '.git' in p.parts: continue
+              try: t=p.read_text(errors='ignore')
+              except Exception: continue
+              n=re.sub(r'(org\.jetbrains\.kotlinx:kotlinx-coroutines-(?:android|core|core-jvm|jdk8)):(?:1\.8\.10)\b',r'\1:1.8.1',t)
+              n=re.sub(r'("org\.jetbrains\.kotlinx"\s*:\s*"kotlinx-coroutines-(?:android|core|core-jvm|jdk8)"\s*:\s*)"1\.8\.10"',r'\1"1.8.1"',n)
+              if n!=t: p.write_text(n); changed+=1
+          print('Patched coroutines files:',changed)
+          PY
+
+      - name: Patch SmartTube Kotlin JVM target
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root=Path('third_party/SmartTube-droid'); changed=[]
+          for p in sorted(root.rglob('build.gradle')):
+              if '/gradle/' in p.as_posix(): continue
+              t=p.read_text(errors='ignore')
+              if 'kotlin-android' not in t or 'kotlinOptions' in t: continue
+              n=re.sub(r'(\bandroid\s*\{)',r'\1\n    kotlinOptions { jvmTarget = "1.8" }',t,count=1)
+              if n!=t: p.write_text(n); changed.append(str(p))
+          print('Patched Kotlin JVM target:',len(changed))
+          PY
+
+      - name: Patch SmartTube Cast test manifest exported activities
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root=Path('third_party/SmartTube-droid')
+          targets={'BootstrapActivity','EmptyActivity','EmptyFloatingActivity'}
+          changed=[]
+          for p in root.rglob('AndroidManifest.xml'):
+              if '.git' in p.parts: continue
+              text=p.read_text(errors='ignore')
+              original=text
+              for name in targets:
+                  pattern=r'(<activity\b[^>]*\bandroid:name=["\'][^"\']*\.?'+re.escape(name)+r'["\'][^>]*)(/?>)'
+                  def repl(m):
+                      block=m.group(1)
+                      if re.search(r'android:exported\s*=',block): return m.group(0)
+                      return block+' android:exported="false"'+m.group(2)
+                  text=re.sub(pattern,repl,text)
+              if text!=original:
+                  p.write_text(text); changed.append(str(p))
+          print('Patched Cast test manifests:',len(changed))
+          PY
+
+      - name: Verify Mobile SmartTube flavor mapping
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('smarttube/build.gradle.kts'); t=p.read_text()
+          t=t.replace('missingDimensionStrategy("device", "mobile")\n','')
+          anchor='missingDimensionStrategy("default", "ststable")'
+          if anchor not in t: raise SystemExit('SmartTube default flavor strategy missing')
+          if 'missingDimensionStrategy("device", "mobile")' not in t: t=t.replace(anchor,anchor+'\n        missingDimensionStrategy("device", "mobile")',1)
+          p.write_text(t); print('Verified SmartTube strategies')
+          PY
+
+      - name: Install JDK 17
+        uses: actions/setup-java@v6
+        with: {distribution: temurin, java-version: "17"}
+
+      - name: Set up Gradle 8.13
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+        with: {gradle-version: "8.13", cache-provider: basic, validate-wrappers: false}
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with: {cmdline-tools-version: "12266719", packages: "platform-tools", log-accepted-android-sdk-licenses: false}
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-34" "platforms;android-36" "build-tools;30.0.3" "build-tools;36.0.0"
+
+      - name: Apply NM7 Mobile SmartTube UI and lifecycle patches
+        run: |
+          set -euxo pipefail
+          python3 scripts/patch-mobile-v37.py
+          # Hard guard: the pinned SmartTube phone resources do not expose this key.
+          python3 scripts/patch-mobile-v78.py
+          # SmartTube's pinned MediaServiceCore no longer exposes getPublishedDate() on MediaItem.
+          # Normalize this method by line structure so whitespace/CRLF cannot defeat the patch.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('third_party/SmartTube-droid/MediaServiceCore/youtubeapi/src/main/java/com/liskovsoft/youtubeapi/service/data/YouTubeMediaItem.java')
+          if not p.is_file():
+              raise SystemExit(f'Missing expected file: {p}')
+          lines = p.read_text().splitlines(True)
+          for i, line in enumerate(lines):
+              if 'public long getPublishedDate()' in line:
+                  j = i - 1
+                  while j >= 0 and not lines[j].strip():
+                      j -= 1
+                  if j >= 0 and '@Override' in lines[j]:
+                      del lines[j]
+                      print('Removed stale getPublishedDate @Override')
+                  else:
+                      print('getPublishedDate() override already normalized')
+                  p.write_text(''.join(lines))
+                  break
+          else:
+              raise SystemExit('Expected getPublishedDate() method not found')
+          PY
+          # MediaServiceCore's interface shape can differ from the SmartTube wrapper's cached sources;
+          # annotations are compile-time only, so remove them from this adapter without changing behavior.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('third_party/SmartTube-droid/MediaServiceCore/youtubeapi/src/main/java/com/liskovsoft/youtubeapi/service/data/YouTubeMediaItem.java')
+          text = p.read_text()
+          lines = text.splitlines(True)
+          new = [line for line in lines if line.strip() != '@Override']
+          removed = len(lines) - len(new)
+          p.write_text(''.join(new))
+          print(f'Removed YouTubeMediaItem @Override annotations: {removed}')
+          PY
+          ! grep -R --include='PlaybackActivity.java' -n 'R.string.section_is_empty' third_party/SmartTube-droid/smarttubedroid/src/main/java
+
+      - name: Diagnose SmartTube Gradle configuration
+        run: |
+          sed -n '1,180p' third_party/SmartTube-droid/SharedModules/appupdatechecker2/build.gradle
+          gradle --no-daemon --console=plain -PcompileSdkVersion=android-36 -PminSdkVersion=23 -PtargetSdkVersion=36 -PbuildToolsVersion=36.0.0 :appupdatechecker2:tasks --stacktrace
+
+      - name: Compile, test and package Mobile ARM APKs
+        run: gradle --no-daemon --console=plain -PmobileAbiSplits=true -PcompileSdkVersion=android-36 -PminSdkVersion=23 -PtargetSdkVersion=36 -PbuildToolsVersion=36.0.0 -PtestXSupportVersion=1.1.0 -PannotationXVersion=1.1.0 -ProbolectricVersion=4.6.1 assembleMobileDebug
+
+      - name: Lint Mobile (legacy SmartTube warnings do not block APK)
+        continue-on-error: true
+        run: gradle --no-daemon --console=plain -PmobileAbiSplits=true -PcompileSdkVersion=android-36 -PminSdkVersion=23 -PtargetSdkVersion=36 -PbuildToolsVersion=36.0.0 -PtestXSupportVersion=1.1.0 -PannotationXVersion=1.1.0 -ProbolectricVersion=4.6.1 lintMobileDebug
+
+      - name: Read Mobile version
+        id: mobile_version
+        run: |
+          version="$(sed -n 's/.*versionName = "\([^\"]*\)".*/\1/p' app/build.gradle.kts | head -n1)"
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Verify and package Mobile ARM APKs
+        run: |
+          set -euxo pipefail
+          mkdir -p dist/mobile
+          out="app/build/outputs/apk"
+          arm64="dist/mobile/NM7-IPTV-Mobile-${{ steps.mobile_version.outputs.version }}-arm64-v8a.apk"
+          armv7="dist/mobile/NM7-IPTV-Mobile-${{ steps.mobile_version.outputs.version }}-armeabi-v7a.apk"
+          arm64_src="$(find "$out" -type f -name '*arm64-v8a*.apk' | head -n1)"
+          armv7_src="$(find "$out" -type f -name '*armeabi-v7a*.apk' | head -n1)"
+          test -n "$arm64_src"
+          test -n "$armv7_src"
+          echo "ARM64 APK: $arm64_src"
+          echo "ARMv7 APK: $armv7_src"
+          cp "$arm64_src" "$arm64"
+          cp "$armv7_src" "$armv7"
+          for apk in "$arm64" "$armv7"; do
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk"
+            if unzip -l "$apk" | grep -q 'libvlc\.so'; then
+              echo "Mobile APK unexpectedly contains LibVLC: $apk" >&2
+              exit 1
+            fi
+          done
+          (cd dist/mobile && sha256sum *.apk | tee SHA256SUMS.txt)
+
+      - name: Upload Mobile APK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a0
+        with:
+          name: NM7-IPTV-Mobile-${{ steps.mobile_version.outputs.version }}-APK
+          path: dist/mobile/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Prepare Android emulator
+        run: |
+          test -e /dev/kvm
+          sudo chmod a+rw /dev/kvm
+
+      - name: Smoke-test Mobile ARM64 APK on Android 15
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            adb install -r "dist/mobile/NM7-IPTV-Mobile-${{ steps.mobile_version.outputs.version }}-arm64-v8a.apk"
+            adb shell am force-stop vn.phuong.iptvplayer
+            adb shell monkey -p vn.phuong.iptvplayer 1
+            sleep 8
+            adb shell dumpsys activity activities | grep -q 'vn.phuong.iptvplayer'
+            adb shell pm path vn.phuong.iptvplayer
+            adb shell am force-stop vn.phuong.iptvplayer
+
+      - name: Upload test and lint reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a0
+        with:
+          name: Android-test-reports
+          path: app/build/reports/
+          retention-days: 14
+          if-no-files-found: ignore
+
+# CI trigger: rerun Mobile build after v77 idempotence fix
+
+# retrigger 1.10.82 APK build

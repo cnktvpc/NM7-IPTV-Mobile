@@ -1,0 +1,11 @@
+var fs=require('fs'),vm=require('vm'),assert=require('assert');
+var context={module:{exports:{}},exports:{}};vm.runInNewContext(fs.readFileSync(__dirname+'/../js/m3u.js','utf8'),context);
+var parser=context.module.exports;
+var result=parser.parse('#EXTM3U\n#EXTINF:-1 tvg-id="one" group-title="News" tvg-logo="logo.png",Channel One\n#EXTVLCOPT:http-user-agent=Dalvik/2.1.0\nhttps://example.com/live.m3u8\n#EXTINF:-1,Missing\n#EXTINF:-1 group-title="Sport",Two\nhttps://example.com/two.mpd|Referer=https%3A%2F%2Fexample.com');
+assert.strictEqual(result.channels.length,2);
+assert.strictEqual(result.channels[0].name,'Channel One');
+assert.strictEqual(result.channels[0].group,'News');
+assert.strictEqual(result.channels[0].headers['User-Agent'],'Dalvik/2.1.0');
+assert.strictEqual(result.channels[1].headers.Referer,'https://example.com');
+assert.strictEqual(result.missingUrlCount,1);
+console.log('Tizen M3U tests PASS');
