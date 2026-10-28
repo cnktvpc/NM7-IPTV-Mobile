@@ -500,6 +500,11 @@ public final class MainActivity extends Activity {
         Intent i=new Intent(this,PlayerActivity.class);
         i.putExtra(PlayerActivity.EXTRA_NAME,c.name());
         i.putExtra(PlayerActivity.EXTRA_URL,c.url());
+        i.putExtra(PlayerActivity.EXTRA_TVG_ID,c.tvgId());
+        i.putExtra(PlayerActivity.EXTRA_GROUP,c.group());
+        i.putExtra(PlayerActivity.EXTRA_CATCHUP_TYPE,c.catchupType());
+        i.putExtra(PlayerActivity.EXTRA_CATCHUP_DAYS,c.catchupDays());
+        i.putExtra(PlayerActivity.EXTRA_CATCHUP_SOURCE,c.catchupSource());
         Bundle h=new Bundle();
         for(java.util.Map.Entry<String,String> e:c.headers().entrySet())h.putString(e.getKey(),e.getValue());
         i.putExtra(PlayerActivity.EXTRA_HEADERS,h);

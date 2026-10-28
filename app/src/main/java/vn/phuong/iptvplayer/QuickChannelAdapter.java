@@ -38,16 +38,20 @@ final class QuickChannelAdapter extends BaseAdapter {
         holder.number.setText(String.valueOf(position + 1));
         holder.name.setText(channel.name());
         holder.group.setText(channel.group());
+        if (holder.catchup != null) {
+            holder.catchup.setVisibility(channel.hasCatchup() ? View.VISIBLE : View.GONE);
+        }
         convertView.setSelected(AppPreferences.id(channel).equals(currentId));
         return convertView;
     }
 
     private static final class Holder {
-        final TextView number, name, group;
+        final TextView number, name, group, catchup;
         Holder(View view) {
             number = view.findViewById(R.id.txtQuickNumber);
             name = view.findViewById(R.id.txtQuickName);
             group = view.findViewById(R.id.txtQuickGroup);
+            catchup = view.findViewById(R.id.txtQuickCatchup);
         }
     }
 }

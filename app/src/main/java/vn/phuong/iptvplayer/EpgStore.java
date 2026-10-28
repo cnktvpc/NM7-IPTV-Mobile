@@ -9,6 +9,8 @@ import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
@@ -20,58 +22,111 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 
-/** Downloads a current-programme snapshot from an XMLTV feed. */
-final class EpgStore {
+/** Downloads and manages XMLTV EPG data, schedules, and catchup timelines. */
+public final class EpgStore {
     private static final Pattern NON_ALNUM_UNICODE = Pattern.compile("[^\\p{L}\\p{N}]");
     private static final Pattern RELAXED_SUFFIX_RES = Pattern.compile("(?i)(fullhd|fhd|uhd|4k|1080p|720p|hd)$");
     private static final Pattern RELAXED_PREFIX_CH = Pattern.compile("(?i)^(kenh|channel)");
     private static final Pattern RELAXED_SUFFIX_CH = Pattern.compile("(?i)(television|channel)$");
-    private static final Programme MISS = new Programme("", 0L, 0L);
+    private static final Programme MISS = new Programme("", "", 0L, 0L);
 
-    static final class Programme {
-        final String title;
-        final long startMs, endMs;
+    private static volatile Guide globalGuide;
+
+    public static Guide getGuide() {
+        return globalGuide;
+    }
+
+    public static void setGuide(Guide guide) {
+        globalGuide = guide;
+    }
+
+    public static final class Programme {
+        public final String title;
+        public final String desc;
+        public final long startMs, endMs;
         private String cachedStartText;
         private String cachedEndText;
 
-        Programme(String title, long startMs, long endMs) {
-            this.title = title;
+        public Programme(String title, long startMs, long endMs) {
+            this(title, "", startMs, endMs);
+        }
+
+        public Programme(String title, String desc, long startMs, long endMs) {
+            this.title = title == null ? "" : title;
+            this.desc = desc == null ? "" : desc;
             this.startMs = startMs;
             this.endMs = endMs;
         }
-        int progress() {
+
+        public boolean isPast(long now) {
+            return endMs <= now;
+        }
+
+        public boolean isCurrent(long now) {
+            return startMs <= now && now < endMs;
+        }
+
+        public boolean isFuture(long now) {
+            return startMs > now;
+        }
+
+        public int progress() {
             long span = endMs - startMs;
             if (span <= 0) return 0;
             return (int) Math.max(0, Math.min(100, (System.currentTimeMillis() - startMs) * 100 / span));
         }
-        String startText() {
+
+        public String startText() {
             if (cachedStartText == null) cachedStartText = time(startMs);
             return cachedStartText;
         }
-        String endText() {
+
+        public String endText() {
             if (cachedEndText == null) cachedEndText = time(endMs);
             return cachedEndText;
         }
+
+        public String timeRangeText() {
+            return startText() + " - " + endText();
+        }
+
+        public String durationText() {
+            long durMinutes = Math.max(0, (endMs - startMs) / 60000L);
+            if (durMinutes >= 60) {
+                long h = durMinutes / 60;
+                long m = durMinutes % 60;
+                return m > 0 ? (h + " giờ " + m + " phút") : (h + " giờ");
+            }
+            return durMinutes + " phút";
+        }
+
         private static String time(long value) {
             return new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date(value));
         }
     }
 
-    static final class Guide {
+    public static final class Guide {
         private final Map<String, Programme> programmes;
+        private final Map<String, List<Programme>> schedules;
         private final Map<String, String> relaxedKeys;
         private final Map<String, Programme> resolvedCache = new ConcurrentHashMap<>();
+        private final Map<String, List<Programme>> resolvedScheduleCache = new ConcurrentHashMap<>();
 
-        Guide(Map<String, Programme> programmes) {
+        Guide(Map<String, Programme> programmes, Map<String, List<Programme>> schedules) {
             this.programmes = programmes;
-            this.relaxedKeys = new HashMap<>(programmes.size());
+            this.schedules = schedules;
+            this.relaxedKeys = new HashMap<>(programmes.size() + schedules.size());
             for (String key : programmes.keySet()) {
+                String r = relaxed(key);
+                if (!r.isEmpty()) this.relaxedKeys.put(key, r);
+            }
+            for (String key : schedules.keySet()) {
                 String r = relaxed(key);
                 if (!r.isEmpty()) this.relaxedKeys.put(key, r);
             }
         }
 
-        Programme find(Channel channel) {
+        public Programme find(Channel channel) {
             if (channel == null) return null;
             String cacheKey = channel.tvgId() + "\0" + channel.name();
             Programme cached = resolvedCache.get(cacheKey);
@@ -99,10 +154,67 @@ final class EpgStore {
             return p;
         }
 
-        int size() { return programmes.size(); }
+        public List<Programme> getSchedule(Channel channel, long targetDateMs) {
+            if (channel == null) return Collections.emptyList();
+            List<Programme> all = findAllProgrammes(channel);
+            if (all.isEmpty()) return Collections.emptyList();
+
+            Calendar cal = Calendar.getInstance();
+            cal.setTimeInMillis(targetDateMs);
+            cal.set(Calendar.HOUR_OF_DAY, 0);
+            cal.set(Calendar.MINUTE, 0);
+            cal.set(Calendar.SECOND, 0);
+            cal.set(Calendar.MILLISECOND, 0);
+            long dayStart = cal.getTimeInMillis();
+            long dayEnd = dayStart + 86400000L;
+
+            List<Programme> dayList = new ArrayList<>();
+            for (Programme p : all) {
+                // Include programs starting today or spanning into today
+                if ((p.startMs >= dayStart && p.startMs < dayEnd)
+                        || (p.startMs < dayStart && p.endMs > dayStart)) {
+                    dayList.add(p);
+                }
+            }
+            Collections.sort(dayList, Comparator.comparingLong(o -> o.startMs));
+            return dayList;
+        }
+
+        public List<Programme> findAllProgrammes(Channel channel) {
+            if (channel == null) return Collections.emptyList();
+            String cacheKey = channel.tvgId() + "\0" + channel.name();
+            List<Programme> cached = resolvedScheduleCache.get(cacheKey);
+            if (cached != null) return cached;
+
+            String id = normalize(channel.tvgId());
+            String name = normalize(channel.name());
+            List<Programme> list = schedules.get(id);
+            if (list == null) list = schedules.get(name);
+            String relaxedId = relaxed(id);
+            if (list == null) list = schedules.get(relaxedId);
+            String target = relaxed(name);
+            if (list == null) list = schedules.get(target);
+
+            if (list == null && !target.isEmpty()) {
+                for (Map.Entry<String, List<Programme>> item : schedules.entrySet()) {
+                    String key = relaxedKeys.get(item.getKey());
+                    if (key != null && !key.isEmpty()
+                            && (target.equals(key) || target.contains(key) || key.contains(target))) {
+                        list = item.getValue();
+                        break;
+                    }
+                }
+            }
+
+            if (list == null) list = Collections.emptyList();
+            resolvedScheduleCache.put(cacheKey, list);
+            return list;
+        }
+
+        public int size() { return programmes.size(); }
     }
 
-    static Guide download(String address) throws Exception {
+    public static Guide download(String address) throws Exception {
         if (address == null || !(address.startsWith("http://") || address.startsWith("https://"))) {
             throw new IllegalArgumentException("URL EPG phải bắt đầu bằng http:// hoặc https://");
         }
@@ -116,19 +228,26 @@ final class EpgStore {
         if (code < 200 || code >= 300) throw new Exception("HTTP " + code);
         try (InputStream raw = new BufferedInputStream(connection.getInputStream());
              InputStream input = isGzip(address, connection) ? new GZIPInputStream(raw) : raw) {
-            return parse(input, System.currentTimeMillis());
+            Guide guide = parse(input, System.currentTimeMillis());
+            globalGuide = guide;
+            return guide;
         } finally {
             connection.disconnect();
         }
     }
 
-    static Guide parse(InputStream input, long now) throws Exception {
+    public static Guide parse(InputStream input, long now) throws Exception {
         XmlPullParser parser = Xml.newPullParser();
         parser.setInput(input, "UTF-8");
         Map<String, List<String>> displayNames = new HashMap<>();
         Map<String, Programme> byId = new HashMap<>();
-        String channelId = "", programmeId = "", title = "";
+        Map<String, List<Programme>> schedulesById = new HashMap<>();
+
+        String channelId = "", programmeId = "", title = "", desc = "";
         long start = 0, end = 0;
+        long minKeepTime = now - 8L * 86400000L;
+        long maxKeepTime = now + 4L * 86400000L;
+
         int event = parser.getEventType();
         while (event != XmlPullParser.END_DOCUMENT) {
             if (event == XmlPullParser.START_TAG) {
@@ -145,31 +264,54 @@ final class EpgStore {
                     start = parseTime(value(parser, "start"));
                     end = parseTime(value(parser, "stop"));
                     title = "";
+                    desc = "";
                 } else if ("title".equals(tag) && !programmeId.isEmpty()) {
                     title = parser.nextText();
+                } else if ("desc".equals(tag) && !programmeId.isEmpty()) {
+                    desc = parser.nextText();
                 }
             } else if (event == XmlPullParser.END_TAG) {
                 String tag = parser.getName();
                 if ("channel".equals(tag)) {
                     channelId = "";
                 } else if ("programme".equals(tag)) {
-                    if (start <= now && now < end && !programmeId.isEmpty()) {
-                        byId.put(programmeId, new Programme(
-                                title == null || title.trim().isEmpty() ? "Chương trình đang phát" : title.trim(),
-                                start, end));
+                    if (!programmeId.isEmpty() && end > start && end >= minKeepTime && start <= maxKeepTime) {
+                        String cleanTitle = title == null || title.trim().isEmpty() ? "Chương trình TV" : title.trim();
+                        String cleanDesc = desc == null ? "" : desc.trim();
+                        Programme programme = new Programme(cleanTitle, cleanDesc, start, end);
+
+                        schedulesById.computeIfAbsent(programmeId, k -> new ArrayList<>()).add(programme);
+
+                        if (start <= now && now < end) {
+                            byId.put(programmeId, programme);
+                        }
                     }
                     programmeId = "";
                 }
             }
             event = parser.next();
         }
-        Map<String, Programme> result = new HashMap<>(byId.size() * 4);
-        for (Map.Entry<String, Programme> item : byId.entrySet()) {
-            putAlias(result, item.getKey(), item.getValue());
-            List<String> names = displayNames.get(item.getKey());
-            if (names != null) for (String name : names) putAlias(result, name, item.getValue());
+
+        // Sort all program lists by start time
+        for (List<Programme> list : schedulesById.values()) {
+            Collections.sort(list, Comparator.comparingLong(o -> o.startMs));
         }
-        return new Guide(result);
+
+        Map<String, Programme> resultCurrent = new HashMap<>(byId.size() * 4);
+        for (Map.Entry<String, Programme> item : byId.entrySet()) {
+            putAlias(resultCurrent, item.getKey(), item.getValue());
+            List<String> names = displayNames.get(item.getKey());
+            if (names != null) for (String name : names) putAlias(resultCurrent, name, item.getValue());
+        }
+
+        Map<String, List<Programme>> resultSchedules = new HashMap<>(schedulesById.size() * 4);
+        for (Map.Entry<String, List<Programme>> item : schedulesById.entrySet()) {
+            putScheduleAlias(resultSchedules, item.getKey(), item.getValue());
+            List<String> names = displayNames.get(item.getKey());
+            if (names != null) for (String name : names) putScheduleAlias(resultSchedules, name, item.getValue());
+        }
+
+        return new Guide(resultCurrent, resultSchedules);
     }
 
     private static void putAlias(Map<String, Programme> result, String value, Programme programme) {
@@ -179,7 +321,14 @@ final class EpgStore {
         if (!relaxed.isEmpty()) result.put(relaxed, programme);
     }
 
-    static boolean isGzip(String url, HttpURLConnection connection) {
+    private static void putScheduleAlias(Map<String, List<Programme>> result, String value, List<Programme> list) {
+        String normal = normalize(value);
+        if (!normal.isEmpty()) result.put(normal, list);
+        String relaxed = relaxed(normal);
+        if (!relaxed.isEmpty()) result.put(relaxed, list);
+    }
+
+    public static boolean isGzip(String url, HttpURLConnection connection) {
         String encoding = connection.getContentEncoding();
         String type = connection.getContentType();
         return (url != null && url.toLowerCase(Locale.ROOT).endsWith(".gz"))

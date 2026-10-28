@@ -61,6 +61,8 @@ public final class PlayerActivity extends Activity {
     public static final String EXTRA_USER_AGENT = "user_agent", EXTRA_REFERER = "referer", EXTRA_ORIGIN = "origin";
     public static final String EXTRA_HEADERS = "headers", EXTRA_MIME = "mime", EXTRA_OPTIONS = "options";
     public static final String EXTRA_LIVE_EVENT = "live_event_json";
+    public static final String EXTRA_TVG_ID = "tvg_id", EXTRA_GROUP = "group";
+    public static final String EXTRA_CATCHUP_TYPE = "catchup_type", EXTRA_CATCHUP_DAYS = "catchup_days", EXTRA_CATCHUP_SOURCE = "catchup_source";
     private LiveEvent liveEvent;
     private ExoPlayer player;
     private PlayerView playerView;
@@ -98,6 +100,23 @@ public final class PlayerActivity extends Activity {
     private ListView quickChannelList;
     private TextView quickEmpty;
     private QuickChannelAdapter quickAdapter;
+    private String tvgId = "", group = "", catchupType = "", catchupSource = "";
+    private int catchupDays = 0;
+    private Channel currentChannel;
+    private boolean isCatchupMode = false;
+    private String liveStreamUrl = "";
+    private EpgStore.Programme currentCatchupProgramme;
+
+    private View schedulePanel;
+    private TextView txtScheduleChannelName;
+    private TextView badgeChannelCatchup;
+    private TextView txtScheduleDate;
+    private ListView scheduleList;
+    private TextView txtScheduleEmpty;
+    private Button btnSchedule;
+    private Button btnReturnLive;
+    private ScheduleProgramAdapter scheduleAdapter;
+    private long selectedScheduleDateMs = System.currentTimeMillis();
     private final List<Channel> quickChannels = new ArrayList<>();
     private final LinkedHashMap<String,List<Channel>> quickChannelsByGroup = new LinkedHashMap<>();
     private final List<String> quickGroups = new ArrayList<>();
@@ -153,6 +172,13 @@ public final class PlayerActivity extends Activity {
         if (passedOptions != null) options = passedOptions;
         Bundle passedHeaders = getIntent().getBundleExtra(EXTRA_HEADERS);
         if (passedHeaders != null) currentHeaders = passedHeaders;
+        tvgId = value(EXTRA_TVG_ID);
+        group = value(EXTRA_GROUP);
+        catchupType = value(EXTRA_CATCHUP_TYPE);
+        catchupDays = getIntent().getIntExtra(EXTRA_CATCHUP_DAYS, 0);
+        catchupSource = value(EXTRA_CATCHUP_SOURCE);
+        liveStreamUrl = url;
+        buildCurrentChannel();
         liveEvent = LivePlaybackSession.decode(value(EXTRA_LIVE_EVENT));
         if (liveEvent == null) {
             LiveEvent active = LivePlaybackSession.activeEvent();
@@ -181,7 +207,39 @@ public final class PlayerActivity extends Activity {
         findViewById(R.id.btnDrm).setOnClickListener(v -> configureDrm()); findViewById(R.id.btnResize).setOnClickListener(v -> chooseResizeMode());
         findViewById(R.id.btnLiveServer).setOnClickListener(v -> showLiveServerPicker());
         updateLiveServerButton();
-        findViewById(R.id.btnRetry).setOnClickListener(v -> { position = 0; resumePlayback = true; releasePlayer(); startPlayer(); }); setupMobileEdgeGestures(); loadQuickChannels();
+        findViewById(R.id.btnRetry).setOnClickListener(v -> { position = 0; resumePlayback = true; releasePlayer(); startPlayer(); }); btnSchedule = findViewById(R.id.btnSchedule);
+        btnReturnLive = findViewById(R.id.btnReturnLive);
+        schedulePanel = findViewById(R.id.schedulePanel);
+        txtScheduleChannelName = findViewById(R.id.txtScheduleChannelName);
+        badgeChannelCatchup = findViewById(R.id.badgeChannelCatchup);
+        txtScheduleDate = findViewById(R.id.txtScheduleDate);
+        scheduleList = findViewById(R.id.scheduleList);
+        txtScheduleEmpty = findViewById(R.id.txtScheduleEmpty);
+
+        if (btnSchedule != null) btnSchedule.setOnClickListener(v -> toggleSchedulePanel());
+        if (btnReturnLive != null) btnReturnLive.setOnClickListener(v -> exitCatchupMode());
+        if (findViewById(R.id.btnCloseSchedule) != null) findViewById(R.id.btnCloseSchedule).setOnClickListener(v -> closeSchedulePanel());
+        if (findViewById(R.id.btnSchedulePrevDay) != null) findViewById(R.id.btnSchedulePrevDay).setOnClickListener(v -> changeScheduleDay(-1));
+        if (findViewById(R.id.btnScheduleNextDay) != null) findViewById(R.id.btnScheduleNextDay).setOnClickListener(v -> changeScheduleDay(1));
+
+        scheduleAdapter = new ScheduleProgramAdapter(this, new ScheduleProgramAdapter.Listener() {
+            @Override public void onCatchupClick(EpgStore.Programme programme) {
+                openCatchupPlayback(programme);
+            }
+            @Override public void onProgramClick(EpgStore.Programme programme) {
+                long now = System.currentTimeMillis();
+                if (programme.isCurrent(now)) {
+                    if (isCatchupMode) exitCatchupMode();
+                } else if (programme.isPast(now) && currentChannel != null && currentChannel.hasCatchup()) {
+                    openCatchupPlayback(programme);
+                }
+            }
+        });
+        if (scheduleList != null) {
+            scheduleList.setAdapter(scheduleAdapter);
+            scheduleList.setEmptyView(txtScheduleEmpty);
+        }
+        setupMobileEdgeGestures(); loadQuickChannels();
     }
     @Override protected void onStart() { super.onStart(); activityStarted = true; boolean youtubeTab = SharedPlaybackSession.TAB_YOUTUBE.equals(SharedPlaybackSession.tab(this)); keepPlayerForTabSwitch = isYoutubeHandoffPending() || youtubeTab; if(!youtubeTab) stopService(new android.content.Intent(this,BackgroundPlaybackService.class)); backgroundPlaybackActive=false; fpsHandler.post(fpsUpdate); clockHandler.post(clockUpdate); if(!keepPlayerForTabSwitch) startPlayer(); }
     @Override protected void onResume(){super.onResume();if(player!=null){player.setWakeMode(C.WAKE_MODE_NONE);if(playerView!=null&&playerView.getPlayer()!=player)playerView.setPlayer(player);}}
@@ -352,6 +410,21 @@ public final class PlayerActivity extends Activity {
             updateLiveServerButton();
             return;
         }
+        if (isCatchupMode) {
+            isCatchupMode = false;
+            currentCatchupProgramme = null;
+            if (btnReturnLive != null) btnReturnLive.setVisibility(View.GONE);
+        }
+        tvgId = c.tvgId();
+        group = c.group();
+        catchupType = c.catchupType();
+        catchupDays = c.catchupDays();
+        catchupSource = c.catchupSource();
+        liveStreamUrl = c.url();
+        currentChannel = c;
+        if (schedulePanel != null && schedulePanel.getVisibility() == View.VISIBLE) {
+            refreshScheduleUI();
+        }
         name=c.name();url=c.url();mime=c.mimeHint();options=new ArrayList<>(c.options());
         if(liveEvent!=null){
             liveEvent=liveEvent.withPreferredUrl(url);
@@ -404,7 +477,7 @@ public final class PlayerActivity extends Activity {
                 }).setNegativeButton("Đóng",null).show();
     }
     private boolean switchRelative(int delta){for(int i=0;i<quickChannels.size();i++)if(isCurrentChannel(quickChannels.get(i))){switchChannel(quickChannels.get((i+delta+quickChannels.size())%quickChannels.size()));playerView.hideController();return true;}return false;}
-    @Override public boolean dispatchKeyEvent(KeyEvent event){int key=event.getKeyCode();if(event.getAction()==KeyEvent.ACTION_UP&&key==consumedRemoteKey){consumedRemoteKey=KeyEvent.KEYCODE_UNKNOWN;return true;}if(event.getAction()==KeyEvent.ACTION_DOWN){if(event.getRepeatCount()>0&&key==consumedRemoteKey)return true;boolean panel=quickPanel!=null&&quickPanel.getVisibility()==View.VISIBLE;if(key==KeyEvent.KEYCODE_BACK&&panel){hideQuickChannels();consumedRemoteKey=key;return true;}if(AppPreferences.isTvInterface(this)&&!panel){boolean controller=playerView.isControllerFullyVisible();boolean handled=false;if(key==KeyEvent.KEYCODE_BACK&&controller){playerView.hideController();playerView.requestFocus();handled=true;}else if((key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER||key==KeyEvent.KEYCODE_NUMPAD_ENTER)&&!controller){playerView.showController();handled=true;}else if(!controller&&key==KeyEvent.KEYCODE_DPAD_LEFT){showQuickChannels();handled=true;}else if(!controller&&(key==KeyEvent.KEYCODE_DPAD_UP||key==KeyEvent.KEYCODE_DPAD_DOWN)){handled=switchRelative(key==KeyEvent.KEYCODE_DPAD_UP?1:-1);}else if(key==KeyEvent.KEYCODE_MENU){AppPreferences.setShowPlayerSource(this,!AppPreferences.showPlayerSource(this));findViewById(R.id.txtPlayerUrl).setVisibility(AppPreferences.showPlayerSource(this)?View.VISIBLE:View.GONE);handled=true;}if(handled){consumedRemoteKey=key;return true;}}}return super.dispatchKeyEvent(event);}
+    @Override public boolean dispatchKeyEvent(KeyEvent event){int key=event.getKeyCode();if(event.getAction()==KeyEvent.ACTION_UP&&key==consumedRemoteKey){consumedRemoteKey=KeyEvent.KEYCODE_UNKNOWN;return true;}if(event.getAction()==KeyEvent.ACTION_DOWN){if(event.getRepeatCount()>0&&key==consumedRemoteKey)return true;boolean schedOpen=schedulePanel!=null&&schedulePanel.getVisibility()==View.VISIBLE;if(key==KeyEvent.KEYCODE_BACK&&schedOpen){closeSchedulePanel();consumedRemoteKey=key;return true;}if(key==KeyEvent.KEYCODE_BACK&&isCatchupMode){exitCatchupMode();consumedRemoteKey=key;return true;}boolean panel=quickPanel!=null&&quickPanel.getVisibility()==View.VISIBLE;if(key==KeyEvent.KEYCODE_BACK&&panel){hideQuickChannels();consumedRemoteKey=key;return true;}if(AppPreferences.isTvInterface(this)&&!panel){boolean controller=playerView.isControllerFullyVisible();boolean handled=false;if(key==KeyEvent.KEYCODE_BACK&&controller){playerView.hideController();playerView.requestFocus();handled=true;}else if((key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER||key==KeyEvent.KEYCODE_NUMPAD_ENTER)&&!controller){playerView.showController();handled=true;}else if(!controller&&key==KeyEvent.KEYCODE_DPAD_LEFT){showQuickChannels();handled=true;}else if(!controller&&(key==KeyEvent.KEYCODE_DPAD_UP||key==KeyEvent.KEYCODE_DPAD_DOWN)){handled=switchRelative(key==KeyEvent.KEYCODE_DPAD_UP?1:-1);}else if(key==KeyEvent.KEYCODE_MENU){AppPreferences.setShowPlayerSource(this,!AppPreferences.showPlayerSource(this));findViewById(R.id.txtPlayerUrl).setVisibility(AppPreferences.showPlayerSource(this)?View.VISIBLE:View.GONE);handled=true;}if(handled){consumedRemoteKey=key;return true;}}}return super.dispatchKeyEvent(event);}
     private int dp(int value){return Math.round(value*getResources().getDisplayMetrics().density);} private void acquireMulticast(){WifiManager wifi=(WifiManager)getApplicationContext().getSystemService(WIFI_SERVICE);if(wifi!=null){multicastLock=wifi.createMulticastLock("iptv-stream");multicastLock.setReferenceCounted(false);multicastLock.acquire();}}
     private void showSource(){TextView v=new TextView(this);v.setText(url);v.setTextIsSelectable(true);v.setPadding(24,16,24,16);android.widget.ScrollView s=new android.widget.ScrollView(this);s.addView(v);new AlertDialog.Builder(this).setTitle("URL nguồn").setView(s).setPositiveButton("Đóng",null).show();}
     private void showError(String m){findViewById(R.id.playerError).setVisibility(View.VISIBLE);((TextView)findViewById(R.id.txtPlayerError)).setText(m);playerView.showController();} private String value(String k){String v=getIntent().getStringExtra(k);return v==null?"":v;}
@@ -452,4 +525,129 @@ public final class PlayerActivity extends Activity {
 
     @Override protected void onSaveInstanceState(Bundle out){rememberPosition();out.putLong("position",position);out.putBoolean("playing",resumePlayback);out.putInt("quality",quality);out.putInt("resize",resizeMode);out.putString("mime",mime);super.onSaveInstanceState(out);} @Override protected void onStop(){activityStarted=false;fpsHandler.removeCallbacks(fpsUpdate);clockHandler.removeCallbacks(clockUpdate);rememberPosition();if(!isFinishing()&&(isYoutubeHandoffPending()||SharedPlaybackSession.TAB_YOUTUBE.equals(SharedPlaybackSession.tab(this)))){keepPlayerForTabSwitch=true;}if(MobileNm7Application.isTabSwitchPending()){keepPlayerForTabSwitch=true;}if(!backgroundPlaybackActive&&!keepPlayerForTabSwitch){recoveryHandler.removeCallbacksAndMessages(null);releasePlayer();}super.onStop();}
     private void releasePlayer(){bufferingSinceMs=0;recoveryHandler.removeCallbacks(stalledPlaybackCheck);if(player!=null){playerView.setPlayer(null);player.release();player=null;}videoCounters=null;fpsMeter.reset();if(multicastLock!=null){if(multicastLock.isHeld())multicastLock.release();multicastLock=null;}} @Override protected void onDestroy(){boolean preserveForYoutube=!isFinishing()&&(keepPlayerForTabSwitch||isYoutubeHandoffPending()||SharedPlaybackSession.TAB_YOUTUBE.equals(SharedPlaybackSession.tab(this)));if(currentInstance==this) currentInstance=null; drmIo.shutdownNow();if(!preserveForYoutube&&(isFinishing()||!backgroundPlaybackActive)){stopService(new android.content.Intent(this,BackgroundPlaybackService.class));releasePlayer();}super.onDestroy();}
+
+    private void buildCurrentChannel() {
+        Map<String, String> hdrs = new LinkedHashMap<>();
+        if (currentHeaders != null) {
+            for (String k : currentHeaders.keySet()) {
+                String v = currentHeaders.getString(k);
+                if (v != null) hdrs.put(k, v);
+            }
+        }
+        currentChannel = new Channel(name, group, (liveStreamUrl != null && !liveStreamUrl.isEmpty()) ? liveStreamUrl : url,
+                "", "", "", tvgId, hdrs, catchupType, catchupDays, catchupSource);
+        currentChannel.options().addAll(options);
+    }
+
+    private void openCatchupPlayback(EpgStore.Programme programme) {
+        if (currentChannel == null || programme == null) return;
+        if (!currentChannel.hasCatchup()) {
+            android.widget.Toast.makeText(this, "Kênh không hỗ trợ xem lại", android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String catchupUrl = CatchupUrlBuilder.build(currentChannel, programme);
+        if (catchupUrl == null || catchupUrl.isEmpty()) {
+            android.widget.Toast.makeText(this, "Không tạo được đường dẫn xem lại", android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        isCatchupMode = true;
+        currentCatchupProgramme = programme;
+
+        if (btnReturnLive != null) btnReturnLive.setVisibility(View.VISIBLE);
+        ((TextView) findViewById(R.id.txtPlayerTitle)).setText("[Xem lại] " + name + " — " + programme.title);
+        if (scheduleAdapter != null) scheduleAdapter.setActiveCatchupProgramme(programme);
+
+        url = catchupUrl;
+        position = 0;
+        resumePlayback = true;
+        releasePlayer();
+        startPlayer();
+    }
+
+    private void exitCatchupMode() {
+        if (!isCatchupMode) return;
+        isCatchupMode = false;
+        currentCatchupProgramme = null;
+
+        if (btnReturnLive != null) btnReturnLive.setVisibility(View.GONE);
+        ((TextView) findViewById(R.id.txtPlayerTitle)).setText(name);
+        if (scheduleAdapter != null) scheduleAdapter.setActiveCatchupProgramme(null);
+
+        url = liveStreamUrl;
+        position = 0;
+        resumePlayback = true;
+        releasePlayer();
+        startPlayer();
+    }
+
+    private void toggleSchedulePanel() {
+        if (schedulePanel == null) return;
+        if (schedulePanel.getVisibility() == View.VISIBLE) {
+            closeSchedulePanel();
+        } else {
+            openSchedulePanel();
+        }
+    }
+
+    private void openSchedulePanel() {
+        if (schedulePanel == null) return;
+        schedulePanel.setVisibility(View.VISIBLE);
+        if (quickPanel != null) quickPanel.setVisibility(View.GONE);
+        selectedScheduleDateMs = System.currentTimeMillis();
+        refreshScheduleUI();
+    }
+
+    private void closeSchedulePanel() {
+        if (schedulePanel != null) schedulePanel.setVisibility(View.GONE);
+    }
+
+    private void changeScheduleDay(int dayDelta) {
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.setTimeInMillis(selectedScheduleDateMs);
+        cal.add(java.util.Calendar.DAY_OF_MONTH, dayDelta);
+        java.util.Calendar maxCal = java.util.Calendar.getInstance();
+        maxCal.add(java.util.Calendar.DAY_OF_MONTH, 1);
+        if (cal.after(maxCal)) return;
+
+        selectedScheduleDateMs = cal.getTimeInMillis();
+        refreshScheduleUI();
+    }
+
+    private void refreshScheduleUI() {
+        if (currentChannel == null) buildCurrentChannel();
+        if (scheduleAdapter != null) scheduleAdapter.setChannel(currentChannel);
+        if (txtScheduleChannelName != null) {
+            txtScheduleChannelName.setText(currentChannel != null ? currentChannel.name() : name);
+        }
+        if (badgeChannelCatchup != null) {
+            badgeChannelCatchup.setVisibility(currentChannel != null && currentChannel.hasCatchup() ? View.VISIBLE : View.GONE);
+        }
+
+        String dateStr = formatScheduleDate(selectedScheduleDateMs);
+        if (txtScheduleDate != null) txtScheduleDate.setText(dateStr);
+
+        EpgStore.Guide guide = EpgStore.getGuide();
+        List<EpgStore.Programme> list = guide != null ? guide.getSchedule(currentChannel, selectedScheduleDateMs) : java.util.Collections.emptyList();
+        if (scheduleAdapter != null) scheduleAdapter.submit(list, currentCatchupProgramme);
+    }
+
+    private static String formatScheduleDate(long epochMs) {
+        java.util.Calendar now = java.util.Calendar.getInstance();
+        java.util.Calendar target = java.util.Calendar.getInstance();
+        target.setTimeInMillis(epochMs);
+
+        boolean isToday = now.get(java.util.Calendar.YEAR) == target.get(java.util.Calendar.YEAR)
+                && now.get(java.util.Calendar.DAY_OF_YEAR) == target.get(java.util.Calendar.DAY_OF_YEAR);
+
+        java.util.Calendar yest = java.util.Calendar.getInstance();
+        yest.add(java.util.Calendar.DAY_OF_YEAR, -1);
+        boolean isYesterday = yest.get(java.util.Calendar.YEAR) == target.get(java.util.Calendar.YEAR)
+                && yest.get(java.util.Calendar.DAY_OF_YEAR) == target.get(java.util.Calendar.DAY_OF_YEAR);
+
+        SimpleDateFormat dayFormat = new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault());
+        if (isToday) return "Hôm nay (" + dayFormat.format(target.getTime()) + ")";
+        if (isYesterday) return "Hôm qua (" + dayFormat.format(target.getTime()) + ")";
+        return new SimpleDateFormat("EEEE, dd/MM/yyyy", new Locale("vi", "VN")).format(target.getTime());
+    }
+
 }

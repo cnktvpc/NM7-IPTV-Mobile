@@ -106,6 +106,7 @@ public final class ChannelAdapter extends BaseAdapter {
 
     public void submitGuide(EpgStore.Guide guide) {
         this.guide = guide;
+        EpgStore.setGuide(guide);
         notifyDataSetChanged();
     }
 
@@ -165,6 +166,10 @@ public final class ChannelAdapter extends BaseAdapter {
             h.favorite.setText(favorite ? "★" : "☆");
             listener.onFavoriteChanged(c, favorite);
         });
+
+        if (h.catchup != null) {
+            h.catchup.setVisibility(c.hasCatchup() ? View.VISIBLE : View.GONE);
+        }
 
         boolean tv = AppPreferences.isTvInterface(context);
         boolean compact = AppPreferences.compactRows(context);
@@ -573,7 +578,7 @@ public final class ChannelAdapter extends BaseAdapter {
     }
 
     private static final class Holder {
-        final TextView name, group, url, badge, favorite, programme, epgStart, epgEnd;
+        final TextView name, group, url, badge, favorite, catchup, programme, epgStart, epgEnd;
         final ImageView logo;
         final View epg;
         final ProgressBar epgProgress;
@@ -584,6 +589,7 @@ public final class ChannelAdapter extends BaseAdapter {
             url = v.findViewById(R.id.txtUrl);
             badge = v.findViewById(R.id.txtChannelBadge);
             favorite = v.findViewById(R.id.btnFavorite);
+            catchup = v.findViewById(R.id.btnCatchup);
             logo = v.findViewById(R.id.imgChannelLogo);
             epg = v.findViewById(R.id.epgSection);
             programme = v.findViewById(R.id.txtProgramme);

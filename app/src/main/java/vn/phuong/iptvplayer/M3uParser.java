@@ -94,7 +94,8 @@ public final class M3uParser {
                     String iconUrl = resolveUrl(metadata.iconUrl, baseUrl);
                     Channel channel = new Channel(name, metadata.group, parsedUrl.url,
                             tvgLogo, logoUrl, iconUrl,
-                            metadata.tvgId, pendingHeaders);
+                            metadata.tvgId, pendingHeaders,
+                            metadata.catchupType, metadata.catchupDays, metadata.catchupSource);
                     channel.setOriginalExtInf(metadata.original);
                     channel.options().addAll(pendingOptions);
                     for (String alternateValue : metadata.alternateUrls) {
@@ -181,6 +182,25 @@ public final class M3uParser {
                     break;
                 case "group-title":
                     metadata.group = value;
+                    break;
+                case "catchup":
+                    metadata.catchupType = value;
+                    if (metadata.catchupDays == 0) metadata.catchupDays = 7;
+                    break;
+                case "catchup-type":
+                case "catchup_type":
+                    metadata.catchupType = value;
+                    break;
+                case "catchup-days":
+                case "catchup_days":
+                case "timeshift":
+                    try {
+                        metadata.catchupDays = Math.max(0, Integer.parseInt(value.trim()));
+                    } catch (Exception ignored) { }
+                    break;
+                case "catchup-source":
+                case "catchup_source":
+                    metadata.catchupSource = value;
                     break;
                 default:
                     break;
@@ -299,6 +319,15 @@ public final class M3uParser {
                     appendAttribute(output, "icon", channel.iconUrl());
                 }
                 appendAttribute(output, "group-title", channel.group());
+                if (!channel.catchupType().isEmpty()) {
+                    appendAttribute(output, "catchup", channel.catchupType());
+                }
+                if (channel.catchupDays() > 0) {
+                    appendAttribute(output, "catchup-days", String.valueOf(channel.catchupDays()));
+                }
+                if (!channel.catchupSource().isEmpty()) {
+                    appendAttribute(output, "catchup-source", channel.catchupSource());
+                }
                 output.append(',').append(singleLine(channel.name())).append('\n');
             }
             for (String option : channel.options()) output.append(singleLine(option)).append('\n');
@@ -354,6 +383,9 @@ public final class M3uParser {
         String logoUrl = "";
         String iconUrl = "";
         String tvgId = "";
+        String catchupType = "";
+        int catchupDays = 0;
+        String catchupSource = "";
         final List<String> alternateUrls = new ArrayList<>();
     }
 

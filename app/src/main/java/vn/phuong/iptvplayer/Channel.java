@@ -33,6 +33,9 @@ public final class Channel {
     private final String iconUrl;
     private final String tvgId;
     private final Map<String, String> headers;
+    private final String catchupType;
+    private final int catchupDays;
+    private final String catchupSource;
     private final String nameLower;
     private final String groupLower;
     private final String urlLower;
@@ -48,11 +51,17 @@ public final class Channel {
 
     public Channel(String name, String group, String url, String logo, String tvgId,
                    Map<String, String> headers) {
-        this(name, group, url, logo, logo, "", tvgId, headers);
+        this(name, group, url, logo, logo, "", tvgId, headers, "", 0, "");
     }
 
     public Channel(String name, String group, String url, String tvgLogo, String logoUrl,
                    String iconUrl, String tvgId, Map<String, String> headers) {
+        this(name, group, url, tvgLogo, logoUrl, iconUrl, tvgId, headers, "", 0, "");
+    }
+
+    public Channel(String name, String group, String url, String tvgLogo, String logoUrl,
+                   String iconUrl, String tvgId, Map<String, String> headers,
+                   String catchupType, int catchupDays, String catchupSource) {
         this.name = clean(name, "Kênh không tên");
         this.group = clean(group, "Chưa phân nhóm");
         this.url = clean(url, "");
@@ -63,6 +72,9 @@ public final class Channel {
         this.headers = headers == null || headers.isEmpty()
                 ? Collections.emptyMap()
                 : Collections.unmodifiableMap(new LinkedHashMap<>(headers));
+        this.catchupType = clean(catchupType, "");
+        this.catchupDays = Math.max(0, catchupDays);
+        this.catchupSource = clean(catchupSource, "");
         this.nameLower = this.name.toLowerCase(Locale.ROOT);
         this.groupLower = this.group.toLowerCase(Locale.ROOT);
         this.urlLower = this.url.toLowerCase(Locale.ROOT);
@@ -188,6 +200,14 @@ public final class Channel {
     }
 
     public String tvgId() { return tvgId; }
+    public String catchupType() { return catchupType; }
+    public int catchupDays() { return catchupDays; }
+    public String catchupSource() { return catchupSource; }
+    public boolean hasCatchup() {
+        return (catchupSource != null && !catchupSource.isEmpty())
+                || (catchupType != null && !catchupType.isEmpty())
+                || catchupDays > 0;
+    }
     public Map<String, String> headers() { return headers; }
     public boolean selected() { return selected; }
     public void setSelected(boolean selected) { this.selected = selected; }

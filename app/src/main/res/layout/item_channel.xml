@@ -56,6 +56,10 @@
         android:contentDescription="Thêm hoặc bỏ kênh yêu thích" android:focusable="false"
         android:gravity="center" android:text="☆" android:textColor="@color/warning"
         android:textSize="22sp" />
+    <TextView android:id="@+id/btnCatchup" android:layout_width="26dp" android:layout_height="42dp"
+        android:contentDescription="Hỗ trợ xem lại" android:focusable="false"
+        android:gravity="center" android:text="↺" android:textColor="@color/warning"
+        android:textSize="17sp" android:textStyle="bold" android:visibility="gone" />
     <TextView android:layout_width="24dp" android:layout_height="42dp" android:gravity="center"
         android:text="▶" android:textColor="@color/accent" android:textSize="16sp" />
 </LinearLayout>
