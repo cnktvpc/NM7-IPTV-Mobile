@@ -26,6 +26,22 @@ final class EpgScheduleStore {
             if (channel == null) return Collections.emptyList();
             List<EpgProgram> all = byChannel.get(channel.tvgId());
             if (all == null) all = byChannel.get(channel.name());
+            if (all == null) all = byChannel.get(normalize(channel.tvgId()));
+            if (all == null) all = byChannel.get(normalize(channel.name()));
+            if (all == null) {
+                String wantedId = normalize(channel.tvgId());
+                String wantedName = normalize(channel.name());
+                for (Map.Entry<String,List<EpgProgram>> entry : byChannel.entrySet()) {
+                    String key = normalize(entry.getKey());
+                    if ((!wantedId.isEmpty() && wantedId.equals(key))
+                            || (!wantedName.isEmpty() && wantedName.equals(key))
+                            || (!wantedName.isEmpty() && !key.isEmpty()
+                                && (wantedName.contains(key) || key.contains(wantedName)))) {
+                        all = entry.getValue();
+                        break;
+                    }
+                }
+            }
             if (all == null) return Collections.emptyList();
             long dayEnd = dayStartMs + 86400000L;
             List<EpgProgram> result = new ArrayList<>();
@@ -62,7 +78,16 @@ final class EpgScheduleStore {
             event = parser.next();
         }
         for (List<EpgProgram> list : schedules.values()) list.sort(Comparator.comparingLong(p -> p.startMs));
-        return new Schedule(schedules);
+        Map<String,List<EpgProgram>> aliases = new HashMap<>(schedules);
+        for (Map.Entry<String,List<EpgProgram>> entry : schedules.entrySet()) {
+            String key = normalize(entry.getKey());
+            if (!key.isEmpty()) aliases.putIfAbsent(key, entry.getValue());
+        }
+        return new Schedule(aliases);
+    }
+
+    private static String normalize(String value) {
+        return value == null ? "" : value.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
     }
 
     private static String value(XmlPullParser parser, String name) {
