@@ -1,3 +1,37 @@
+# NM7 IPTV Mobile — Candidate 1.10.146 — EPG schedule + Catch-up — 2026-10-28
+
+> **Development branch:** `feature/epg-catchup-superok-20261028`  
+> **Baseline:** `main` / stable Mobile 1.10.145 documented in this repository.  
+> **Version:** 1.10.146 / versionCode 163.  
+> **Status:** implementation candidate; CI and real-device playback validation pending. Do not merge into stable before verification.
+
+## EPG / Catch-up implementation candidate
+
+- Added `EpgProgram` to model a full programme interval and classify past/current/future states.
+- Added `EpgScheduleStore` to parse XMLTV programme history, sort schedules, filter by selected day and resolve channel IDs/names.
+- Added `CatchupUrlBuilder` to read `catchup`, `catchup-source` / `catchup-url`, and `catchup-days` from the channel's original EXTINF metadata. It supports full-URL/default and query-append modes, start/end/duration placeholders, validates the archive window, and never overwrites the live channel URL.
+- Added a channel action **Lịch phát sóng / Xem lại**. It loads the selected EPG on an I/O executor, shows programmes for the selected day, labels current/future/past entries, provides previous/next-day navigation, and starts archive playback only when the channel metadata supports Catch-up.
+- Added unit tests for metadata parsing, URL building, append mode, expiry and future programmes.
+- Existing player, LIVE feed, YouTube MiniPlayer and stable branch are not intentionally modified outside this candidate.
+
+## Known limitations before calling this complete
+
+- The initial schedule entry point is from the channel action menu; matching the exact Super OK in-player bottom overlay and DVR status/progress treatment remains to be validated/implemented.
+- Provider-specific placeholders vary. The builder must be tested against the actual NM7 playlist sources; do not assume every provider accepts the same timestamp format.
+- XMLTV ID/name fallback cannot guarantee correct matching where provider identifiers are ambiguous.
+- CI build, unit tests, and device verification have not yet been confirmed in this note.
+
+## Required verification
+
+1. Run `:app:testMobileDebugUnitTest`, lint and `:app:assembleMobileDebug`.
+2. Test a channel with a known working archive URL and one without Catch-up.
+3. Check timestamp units, timezone, URL query composition, required headers, archive retention and HTTP errors.
+4. Confirm LIVE remains separate from EPG's real-time programme status; exit DVR and return to the original live channel.
+5. Regression-test normal IPTV, Live feed, YouTube MiniPlayer, channel switching and app navigation.
+6. Only after the in-player panel and DVR state match the reference video, consider the feature ready for review.
+
+---
+
 # NM7 IPTV Mobile — STABLE 1.10.145 — Super OK-style group swipe — 2026-10-26
 
 **Source baseline locked:** `4fc8b187db7e48591e1bcb11969436a56d27d06a` (the exact 1.10.142 commit from the screenshot). This branch is based directly on that commit; neither failed swipe candidate is used as source or edited.
