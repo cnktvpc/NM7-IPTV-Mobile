@@ -71,6 +71,15 @@
                 android:textAllCaps="false"
                 android:textColor="@color/text_primary" />
             <Button
+                android:id="@+id/btnEpg"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/button_secondary"
+                android:text="Lịch"
+                android:textAllCaps="false"
+                android:textColor="@color/accent" />
+            <Button
                 android:id="@+id/btnQuality"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
