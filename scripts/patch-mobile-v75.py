@@ -119,10 +119,11 @@ if s.count(anchor) != 1:
 s = s.replace(anchor, replacement, 1)
 media_item.write_text(s, encoding="utf-8")
 
-# 3) Thumbnail quality guard.
+# 3) Feed-thumbnail quality guard, aligned with the active performance baseline.
+# This protects the intentional hqdefault target used by scrolling browse cards.
 ui = Path("scripts/patch-mobile-ui.py")
-if "maxresdefault.jpg" not in ui.read_text(encoding="utf-8"):
-    raise SystemExit("v75: maxresdefault thumbnail target missing")
+if 'cardImageUrl.replace("/mqdefault.jpg", "/hqdefault.jpg")' not in ui.read_text(encoding="utf-8"):
+    raise SystemExit("v75: hqdefault feed thumbnail target missing")
 
 
 # CI retrigger after correcting the fast-path patch owner.

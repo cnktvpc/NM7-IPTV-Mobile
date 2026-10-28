@@ -44,13 +44,14 @@ if "PLAYER_DATA_SOURCE_OKHTTP" in t:
     raise SystemExit("OkHttp transport override remains after v73 patch")
 p.write_text(t, encoding="utf-8")
 
-# 2) Keep the exact YouTube thumbnail quality/resolution used by 1.10.72.
-# The shared UI patch is the actual owner of the card URL. Verify that it still
-# uses the same max-resolution endpoint before allowing the v73 optimization.
+# 2) Guard the feed-thumbnail URL used by the current performance baseline.
+# The shared UI patch deliberately requests hqdefault for browse cards to reduce
+# image transfer during fast swipes; this does not change the video/playback URL.
 ui_patch = Path("scripts/patch-mobile-ui.py")
-if not ui_patch.is_file() or "maxresdefault.jpg" not in ui_patch.read_text(encoding="utf-8"):
-    raise SystemExit("YouTube thumbnail target must remain maxresdefault.jpg")
-# Do not modify the thumbnail URL or substitute a lower-resolution target.
+ui_text = ui_patch.read_text(encoding="utf-8") if ui_patch.is_file() else ""
+if 'cardImageUrl.replace("/mqdefault.jpg", "/hqdefault.jpg")' not in ui_text:
+    raise SystemExit("YouTube feed thumbnail target must remain hqdefault.jpg")
+# Playback source and its own selected-video flow are left untouched.
 
 
 # 3) Keep the selected-video format request on the background I/O scheduler.

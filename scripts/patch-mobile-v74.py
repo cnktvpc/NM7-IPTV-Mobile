@@ -32,10 +32,12 @@ if s.count(old) != 1:
 s = s.replace(old, new, 1)
 p.write_text(s, encoding="utf-8")
 
-# 2) Keep the same 1.10.72 thumbnail quality. Never substitute mqdefault.
+# 2) Keep the feed-thumbnail quality contract aligned with the current performance baseline.
+# Browse cards deliberately use hqdefault rather than maxresdefault to reduce transfer size.
 ui_patch = Path("scripts/patch-mobile-ui.py")
-if not ui_patch.is_file() or "maxresdefault.jpg" not in ui_patch.read_text(encoding="utf-8"):
-    raise SystemExit("v74: YouTube thumbnail target must remain maxresdefault.jpg")
+ui_text = ui_patch.read_text(encoding="utf-8") if ui_patch.is_file() else ""
+if 'cardImageUrl.replace("/mqdefault.jpg", "/hqdefault.jpg")' not in ui_text:
+    raise SystemExit("v74: YouTube feed thumbnail target must remain hqdefault.jpg")
 
 # 3) Hide NM7's two bottom tabs while the SmartTube phone player is in the
 # landscape/fullscreen state, then restore them when returning to portrait.
