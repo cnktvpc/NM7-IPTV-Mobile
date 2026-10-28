@@ -658,7 +658,92 @@ public final class MainActivity extends Activity {
         io.execute(()->{android.graphics.drawable.Drawable background=WallpaperStore.load(getApplicationContext());ui(()->{if(generation==wallpaperGeneration)findViewById(R.id.mainRoot).setBackground(background);});});
     }
     private void showAbout(){String version;try{version=getPackageManager().getPackageInfo(getPackageName(),0).versionName;if(version.endsWith("-mobile"))version=version.substring(0,version.length()-7)+" (Mobile)";}catch(Exception ignored){version="Không xác định";}new AlertDialog.Builder(this).setTitle("Nm7 IPTV Player").setMessage("Phiên bản: "+version+"\n\nỨng dụng được phát triển bởi Phuongnm7 vì mục đích cá nhân, không vì mục đích thương mại.").setPositiveButton("Đóng",null).show();}
-    private void showChannelActions(Channel c){new AlertDialog.Builder(this).setTitle(c.name()).setItems(new String[]{AppPreferences.isFavorite(this,c)?"Bỏ Yêu thích":"Thêm vào Yêu thích","Phát"},(d,w)->{if(w==0){AppPreferences.toggleFavorite(this,c);filter();}else play(c);}).show();}
+    private void showChannelActions(Channel c){
+        String[] actions={AppPreferences.isFavorite(this,c)?"Bỏ Yêu thích":"Thêm vào Yêu thích","Phát","Lịch phát sóng / Xem lại"};
+        new AlertDialog.Builder(this).setTitle(c.name()).setItems(actions,(d,w)->{
+            if(w==0){AppPreferences.toggleFavorite(this,c);filter();}
+            else if(w==1)play(c);
+            else showEpgSchedule(c,0);
+        }).show();
+    }
+
+    /** Loads a full XMLTV schedule on the I/O executor; opening it never touches the live player. */
+    private void showEpgSchedule(Channel channel,int dayOffset){
+        final String address=epgUrl;
+        if(address==null||address.isEmpty()){toast("Chưa cấu hình URL EPG");showEpgEditor();return;}
+        io.execute(()->{
+            try{
+                HttpURLConnection connection=(HttpURLConnection)new URL(address).openConnection();
+                connection.setConnectTimeout(12000);connection.setReadTimeout(25000);
+                connection.setInstanceFollowRedirects(true);
+                connection.setRequestProperty("User-Agent","Nm7-IPTV/1.10.146 Android");
+                connection.setRequestProperty("Accept-Encoding","gzip");
+                try{
+                    int code=connection.getResponseCode();
+                    if(code<200||code>=300)throw new Exception("HTTP "+code);
+                    try(InputStream raw=new BufferedInputStream(connection.getInputStream());
+                        InputStream input=EpgStore.isGzip(address,connection)?new GZIPInputStream(raw):raw){
+                        EpgScheduleStore.Schedule schedule=EpgScheduleStore.parse(input);
+                        ui(()->{
+                            if(isFinishing()||!address.equals(epgUrl))return;
+                            long now=System.currentTimeMillis();
+                            java.util.Calendar day=java.util.Calendar.getInstance();
+                            day.setTimeInMillis(now);day.add(java.util.Calendar.DAY_OF_YEAR,dayOffset);
+                            day.set(java.util.Calendar.HOUR_OF_DAY,0);day.set(java.util.Calendar.MINUTE,0);day.set(java.util.Calendar.SECOND,0);day.set(java.util.Calendar.MILLISECOND,0);
+                            long dayStart=day.getTimeInMillis();
+                            List<EpgProgram> programs=schedule.forChannel(channel,dayStart);
+                            showEpgScheduleDialog(channel,programs,dayOffset,dayStart);
+                        });
+                    }
+                }finally{connection.disconnect();}
+            }catch(Exception error){ui(()->showError("Không tải được lịch chương trình: "+readable(error)));}
+        });
+    }
+
+    private void showEpgScheduleDialog(Channel channel,List<EpgProgram> programs,int dayOffset,long dayStart){
+        java.text.SimpleDateFormat dateFormat=new java.text.SimpleDateFormat("EEE, dd/MM/yyyy",Locale.getDefault());
+        dateFormat.setTimeZone(java.util.TimeZone.getDefault());
+        if(programs.isEmpty()){
+            new AlertDialog.Builder(this).setTitle("Lịch phát sóng — "+channel.name())
+                    .setMessage("Không tìm thấy lịch cho ngày "+dateFormat.format(new java.util.Date(dayStart))+". Kiểm tra tvg-id hoặc URL EPG.")
+                    .setNeutralButton("Ngày trước",(d,w)->showEpgSchedule(channel,dayOffset-1))
+                    .setPositiveButton("Ngày sau",(d,w)->showEpgSchedule(channel,dayOffset+1))
+                    .setNegativeButton("Đóng",null).show();
+            return;
+        }
+        long now=System.currentTimeMillis();
+        String[] labels=new String[programs.size()];
+        for(int i=0;i<programs.size();i++){
+            EpgProgram p=programs.get(i);
+            String state=p.isCurrent(now)?"  • ĐANG PHÁT":p.isFuture(now)?"  • Sắp phát":CatchupUrlBuilder.canReplay(channel,p,now)?"  • Xem lại":"";
+            labels[i]=new java.text.SimpleDateFormat("HH:mm",Locale.getDefault()).format(new java.util.Date(p.startMs))
+                    +"–"+new java.text.SimpleDateFormat("HH:mm",Locale.getDefault()).format(new java.util.Date(p.endMs))
+                    +"  "+p.title+state;
+        }
+        String title="LỊCH PHÁT SÓNG — "+channel.name()+"\n"+dateFormat.format(new java.util.Date(dayStart));
+        new AlertDialog.Builder(this).setTitle(title).setItems(labels,(dialog,which)->{
+            if(which<0||which>=programs.size())return;
+            EpgProgram selected=programs.get(which);
+            long at=System.currentTimeMillis();
+            if(selected.isCurrent(at)){play(channel);return;}
+            if(selected.isFuture(at)){toast("Chương trình chưa phát sóng");return;}
+            if(!CatchupUrlBuilder.canReplay(channel,selected,at)){
+                new AlertDialog.Builder(this).setTitle(selected.title).setMessage("Kênh này chưa khai báo Catch-up hợp lệ hoặc chương trình đã quá thời hạn lưu trữ.")
+                        .setPositiveButton("Đóng",null).show();return;
+            }
+            try{
+                String archiveUrl=CatchupUrlBuilder.build(channel,selected,at);
+                Channel archive=new Channel(channel.name()+" — "+selected.title,channel.group(),archiveUrl,
+                        channel.tvgLogo(),channel.logoUrl(),channel.iconUrl(),channel.tvgId(),channel.headers());
+                archive.setOriginalExtInf(channel.originalExtInf());
+                archive.options().addAll(channel.options());
+                play(archive);
+                toast("ĐANG XEM LẠI: "+selected.title);
+            }catch(Exception error){showError("Không tạo được URL xem lại: "+readable(error));}
+        }).setNeutralButton("Ngày trước",(d,w)->showEpgSchedule(channel,dayOffset-1))
+                .setPositiveButton("Ngày sau",(d,w)->showEpgSchedule(channel,dayOffset+1))
+                .setNegativeButton("Đóng",null).show();
+    }
     private void ui(Runnable r){runOnUiThread(r);}
     private void showError(String m){setLoading(false);new AlertDialog.Builder(this).setTitle("Lỗi").setMessage(m).setPositiveButton("Đóng",null).show();}
     private String readable(Exception e){return e==null?"Không rõ nguyên nhân":e.getMessage()==null?e.getClass().getSimpleName():e.getMessage();}
