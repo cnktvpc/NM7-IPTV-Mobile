@@ -504,6 +504,10 @@ public final class MainActivity extends Activity {
         for(java.util.Map.Entry<String,String> e:c.headers().entrySet())h.putString(e.getKey(),e.getValue());
         i.putExtra(PlayerActivity.EXTRA_HEADERS,h);
         i.putExtra(PlayerActivity.EXTRA_MIME,c.mimeHint());
+        i.putExtra(PlayerActivity.EXTRA_EPG_URL,epgUrl);
+        i.putExtra(PlayerActivity.EXTRA_TVG_ID,c.tvgId());
+        i.putExtra(PlayerActivity.EXTRA_EXTINF,c.originalExtInf());
+        i.putExtra(PlayerActivity.EXTRA_LIVE_URL,c.url());
         i.putStringArrayListExtra(PlayerActivity.EXTRA_OPTIONS,new ArrayList<>(c.options()));
         if(liveEvent!=null)i.putExtra(PlayerActivity.EXTRA_LIVE_EVENT,LivePlaybackSession.encode(liveEvent.withPreferredUrl(c.url())));
         startActivity(i);
