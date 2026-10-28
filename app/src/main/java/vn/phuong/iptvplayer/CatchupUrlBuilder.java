@@ -1,7 +1,5 @@
 package vn.phuong.iptvplayer;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.LinkedHashMap;
@@ -25,7 +23,7 @@ final class CatchupUrlBuilder {
             this.source = source == null ? "" : source.trim();
             this.days = Math.max(0, days);
         }
-        boolean supported() { return !source.isEmpty() && (mode.isEmpty() || !mode.equals("disabled") || !mode.equals("none")); }
+        boolean supported() { return !source.isEmpty() && !mode.equals("disabled") && !mode.equals("none"); }
     }
 
     private CatchupUrlBuilder() {}
