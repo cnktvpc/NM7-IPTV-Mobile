@@ -71,6 +71,15 @@
                 android:textAllCaps="false"
                 android:textColor="@color/text_primary" />
             <Button
+                android:id="@+id/btnEpg"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/button_secondary"
+                android:text="Lịch"
+                android:textAllCaps="false"
+                android:textColor="@color/accent" />
+            <Button
                 android:id="@+id/btnQuality"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
@@ -137,6 +146,77 @@
                 android:textColor="@color/accent"
                 android:visibility="gone" />
         </LinearLayout>
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/epgPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_margin="12dp"
+        android:background="#E60D1929"
+        android:elevation="24dp"
+        android:orientation="vertical"
+        android:padding="10dp"
+        android:visibility="gone">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+            <TextView
+                android:id="@+id/epgPanelDate"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="LỊCH PHÁT SÓNG"
+                android:textColor="#FFFFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+            <Button
+                android:id="@+id/btnEpgPrev"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/button_secondary"
+                android:text="‹ Ngày trước"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="11sp" />
+            <Button
+                android:id="@+id/btnEpgNext"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/button_secondary"
+                android:text="Ngày sau ›"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="11sp" />
+            <Button
+                android:id="@+id/btnEpgClose"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:background="@drawable/button_secondary"
+                android:text="Đóng"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="11sp" />
+        </LinearLayout>
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fillViewport="false"
+            android:overScrollMode="never"
+            android:scrollbars="horizontal">
+            <LinearLayout
+                android:id="@+id/epgProgrammeRow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
     </LinearLayout>
     <LinearLayout
         android:id="@+id/playerError"

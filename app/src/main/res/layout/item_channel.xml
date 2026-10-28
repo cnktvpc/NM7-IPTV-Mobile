@@ -52,10 +52,15 @@
             android:textColor="@color/text_secondary" android:textSize="9sp" />
     </LinearLayout>
 
-    <TextView android:id="@+id/btnFavorite" android:layout_width="36dp" android:layout_height="42dp"
+    <TextView android:id="@+id/btnChannelEpg" android:layout_width="42dp" android:layout_height="34dp"
+        android:layout_marginEnd="3dp" android:background="@drawable/button_secondary"
+        android:clickable="true" android:contentDescription="Mở lịch phát sóng và xem lại"
+        android:focusable="false" android:gravity="center" android:text="EPG"
+        android:textColor="@color/accent" android:textSize="10sp" android:textStyle="bold" />
+    <TextView android:id="@+id/btnFavorite" android:layout_width="32dp" android:layout_height="42dp"
         android:contentDescription="Thêm hoặc bỏ kênh yêu thích" android:focusable="false"
         android:gravity="center" android:text="☆" android:textColor="@color/warning"
         android:textSize="22sp" />
-    <TextView android:layout_width="24dp" android:layout_height="42dp" android:gravity="center"
+    <TextView android:layout_width="20dp" android:layout_height="42dp" android:gravity="center"
         android:text="▶" android:textColor="@color/accent" android:textSize="16sp" />
 </LinearLayout>

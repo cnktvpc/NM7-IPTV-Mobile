@@ -1,76 +1,48 @@
-# HANDOVER — NM7 IPTV Mobile — 1.10.113 — 2026-10-08
+# HANDOVER — NM7 IPTV Mobile EPG / Catch-up — 2026-10-28
 
-## Current
-- Stable: **1.10.112 / 128** on `stable/mobile-1.10.112`.
-- Baseline commit: `6aea2d995280017c1e7c00310bcca0c9937b50bb`.
-- Candidate: **1.10.113 / 129**.
-- Candidate branch: `work/mobile-app-settings-bottom-v113`.
-- HEAD: `1a5ee858ee0bd9a4a44707f9c0f9b3fa81e5a764`.
-- Runtime/device test: **NOT YET CONFIRMED**.
+## Branch and release safety
 
-## Changes
-### IPTV
-- Removed visible row: **Tất cả | Yêu thích | Tải lại | Gần đây**.
-- `Tải lại` moved beside `Bỏ lọc`.
-- `Tùy chọn IPTV` keeps `Tất cả kênh`, `Yêu thích`, `Gần đây`.
-- Hidden section button anchors remain for compatibility with existing MainActivity logic.
+- Repository: `cnktvpc/NM7-IPTV-Mobile`.
+- Test branch: `feature/epg-catchup-superok-20261028`.
+- Baseline: accepted NM7 IPTV Mobile 1.10.145 / versionCode 162.
+- Candidate: **1.10.146 / versionCode 163**.
+- Stable was not modified. PR #1 is a draft; do not merge until CI and real-device checks pass.
 
-### App settings / bottom nav
-- Bottom bar: **YouTube | IPTV | Tùy chọn ứng dụng**.
-- App settings reuse `MainActivity.showSettings()`; no duplicate settings implementation.
+## User feedback / discoverability fix — implemented and CI verified
 
-### YouTube header
-- Generate-time source: `scripts/mobile-ui/res/layout/browse_activity.xml`.
-- Light header with NM7 + search + microphone + account.
-- IDs: `nm7_search`, `nm7_voice`, `nm7_account`.
+- User reported the new EPG feature was not visible. The previous candidate hid the entry behind channel long-press and the player header's transient controls; this was not discoverable enough.
+- Added a visible `EPG` button directly to every channel row, wired to the same channel schedule/catch-up flow. The existing long-press menu and in-player `Lịch` entry remain. This was built and packaged successfully in both push and PR workflows.
 
-## Versioning
-- 1.10.113 / 129 already built.
-- Next new build must not reuse 129; use **1.10.114 / 130** or higher.
+## Implemented
 
-## CI
-- Workflow: `.github/workflows/nm7-mobile-113-ui-refinement.yml`.
-- Run: `37655352745` SUCCESS.
-- Artifact: `11498119053`.
-- APK SHA-256: `72537004c936a9a358712b28261c9709153252561b57b7952e5fe3131f42019b`.
-- Artifact digest: `885fccf5dd8e3004ec6962d7d2c2416bebe354452b3c7c3621f1e470e699c75c6`.
-- [Actions](https://github.com/phuongnm7/iptv-player-android/actions/runs/37655352745)
-- [Artifact](https://github.com/phuongnm7/iptv-player-android/actions/runs/37655352745/artifacts/11498119053)
+- `EpgProgram.java`: programme interval model with past/current/future classification.
+- `EpgScheduleStore.java`: XMLTV parser, day filtering and channel ID plus `display-name` alias matching.
+- `CatchupUrlBuilder.java`: reads Catch-up metadata from the original EXTINF; builds full URL/default or append-query URLs with supported start/end/duration and UTC/local placeholders; checks archive age without mutating the live source.
+- `activity_player.xml` / `PlayerActivity.java`: persistent translucent lower EPG panel, day navigation, horizontal programme cards, live progress indicator, separate wall-clock state and selected replay state. Replay starts in the existing player and the panel remains open. When replay is selected from the channel action-menu schedule, the player receives the original live source and selected programme range, opens directly in DVR mode with the selected programme marked, and can return to live.
+- `MainActivity.java`: channel action menu and original live URL/name pass-through for replay launched from the channel list.
+- `CatchupUrlBuilderTest.java`: metadata parsing, default URL, append mode, archive expiry and future-programme rejection.
+- `.github/workflows/android-mobile-final.yml`: feature branch push trigger, candidate version check (1.10.146 / 163), Catch-up tests before assemble, and APK export naming.
+- README's candidate summary updated; historical release notes remain.
 
-## Build chain
-1. Checkout candidate branch.
-2. Clone pinned SmartTube `4825d6aa8b6f1d3181927f9e96c7d89cab13d510`.
-3. Apply SmartTube compatibility patches.
-4. Run `scripts/patch-mobile-v37.py` and `scripts/patch-mobile-v106.py`.
-5. Verify version 1.10.113 / 129.
-6. Run lifecycle guards and parser test.
-7. Run `:app:assembleMobileDebug`.
-8. Upload artifact.
+## Latest build — visible EPG fix verified
 
-## Important files
-- `app/src/main/java/vn/phuong/iptvplayer/MainActivity.java`
-- `app/src/main/java/vn/phuong/iptvplayer/MobileIptvUi.java`
-- `app/src/main/java/vn/phuong/iptvplayer/HomeTabBar.java`
-- `app/src/main/res/layout/activity_main.xml`
-- `app/build.gradle.kts`
-- `scripts/mobile-ui/res/layout/browse_activity.xml`
-- `scripts/patch-mobile-ui.py`
+- Source commit: `b264cdd62437c360a50f6488430d0e6f3fccdb71`.
+- Push build [#40642855178](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40642855178): **SUCCESS**.
+- PR validation [#40642861504](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40642861504): **SUCCESS**.
+- Unit tests, Mobile APK assembly, artifact upload, and temporary CI-branch export all passed.
+- Artifact: `NM7-IPTV-Mobile-FINAL`, ID `12796551400`, expires 2026-11-27.
+- Delivered APK: `NM7-IPTV-Mobile-1.10.146-EPG-Catchup-visible-EPG.apk` (91,253,360 bytes).
+- APK SHA-256: `0e53cf109a50ba6de5fe1e56f1512aef603537f09c02e78b40161b5d9d8a0897`.
+- Artifact ZIP SHA-256: `1d1106636ea1808ad75901bb123474ec7994096ff98731e400e759ae5bc72dc7`.
+- Verified locally: checksum matches CI `SHA256SUMS.txt`; APK and containing artifact ZIP pass integrity checks; DEX includes the visible EPG callback and schedule/catch-up implementation.
+- Stable remains unchanged; PR #1 remains draft. **Build success does not prove provider-specific catch-up playback or device-level focus/rendering.** Keep these as test gates.
 
-## Do not change casually
-- Do not alter `stable/mobile-1.10.112` before 1.10.113 runtime acceptance.
-- Do not use `main` as implicit baseline.
-- Do not remove section anchors before refactoring MainActivity.
-- Do not edit only generated `third_party/SmartTube-droid`; CI regenerates it.
-- Do not treat CI PASS as runtime PASS.
+## Superseded build
 
-## Device acceptance checklist
-- IPTV old four-button row absent.
-- Bỏ lọc + Tải lại aligned.
-- Tùy chọn IPTV switches All/Favorites/Recent.
-- Bottom bar settings works.
-- Full application settings dialog works.
-- YouTube header visual and interactions work.
-- YouTube avatar/status bar/spinner/live chat/background/mini/back remain OK.
+- Earlier build at commit `04291b79d0f480b06dd574367f4c785ad7c41590`, run #40639183001, was superseded because the EPG entry was not sufficiently visible. Do not use it to test the row-level EPG button.
 
-## Next developer
-Start from `work/mobile-app-settings-bottom-v113` @ `1a5ee858ee0bd9a4a44707f9c0f9b3fa81e5a764`. Read `README.md` → `PROGRESS.md` → `HANDOVER.md` before making changes.
+## Remaining release gates
+
+1. Test remote/touch focus, date navigation, live/past/future rows, archive playback, replay -> live restoration, channel switching and rotation on an Android device.
+2. Test one authorized channel that has real Catch-up support and another that does not; confirm the provider URL template and expiry window.
+3. Keep PR #1 in draft and stable untouched until the above checks pass.

@@ -1,3 +1,43 @@
+# NM7 IPTV Mobile — Candidate 1.10.146 — Super OK-style EPG / Catch-up — 2026-10-28
+
+> **Development branch:** `feature/epg-catchup-superok-20261028`  
+> **Baseline:** accepted Mobile 1.10.145 / versionCode 162.  
+> **Candidate:** 1.10.146 / versionCode 163.  
+> **Previous candidate CI:** passed on commit `04291b79`; a follow-up UX fix is now being built to make the EPG entry visible directly on each channel row. Do not install the previous candidate expecting the new row button. Stable remains unchanged; PR #1 is a draft.
+
+## Implemented in this candidate
+
+- XMLTV schedule model/parser with programme intervals, day navigation, channel-ID matching, and `display-name` aliases.
+- A visible **EPG** button on every channel row opens the channel's schedule directly; long-press actions remain available as an alternate entry. The player also has a **Lịch** button and a translucent lower EPG panel with horizontal programme cards, times, titles, state labels and current-programme progress.
+- Playback state is separate from wall-clock schedule state: the live programme remains **ĐANG PHÁT** according to the real time, while the chosen archive programme changes to **ĐANG XEM LẠI**.
+- Catch-up URL builder reads `catchup`, `catchup-source` / `catchup-url`, and `catchup-days` from original EXTINF metadata; supports full URL/default and append modes plus common start/end/duration and UTC/local placeholders. Placeholder expansion is longest-first to prevent partial replacements.
+- The panel remains open when replay starts. The player changes to **DVR · Lịch** and can restore the original live URL/name. Replay launched from the channel action menu carries the original live URL/name, selected programme interval and title, starts in DVR state and opens the EPG panel.
+- Added Catch-up unit tests, including quoted metadata, default URL construction, append mode, expiry/future rejection, and overlapping-placeholder regression coverage.
+
+## Latest verified artifact — visible EPG button
+
+- **Source commit:** [b264cdd62437c360a50f6488430d0e6f3fccdb71](https://github.com/cnktvpc/NM7-IPTV-Mobile/commit/b264cdd62437c360a50f6488430d0e6f3fccdb71).
+- **Push build:** [Actions run #40642855178 — SUCCESS](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40642855178).
+- **Pull-request validation:** [Actions run #40642861504 — SUCCESS](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40642861504).
+- **Artifact:** `NM7-IPTV-Mobile-FINAL`, ID `12796551400`; expires 2026-11-27.
+- **APK filename delivered:** `NM7-IPTV-Mobile-1.10.146-EPG-Catchup-visible-EPG.apk`.
+- **APK SHA-256:** `0e53cf109a50ba6de5fe1e56f1512aef603537f09c02e78b40161b5d9d8a0897`.
+- **Artifact ZIP SHA-256:** `1d1106636ea1808ad75901bb123474ec7994096ff98731e400e759ae5bc72dc7`.
+- Local verification: ZIP and APK archive integrity passed; APK SHA-256 matches the artifact's `SHA256SUMS.txt`; compiled DEX contains the EPG entry callback and schedule/catch-up code.
+- Stable remains unchanged. CI validates the build/packaging only; real-device UI and provider-specific replay still require device testing.
+
+## Previous artifact (superseded)
+
+The earlier APK from [run #40639183001](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40639183001), commit `04291b79d0f480b06dd574367f4c785ad7c41590`, is superseded because its EPG entry was too difficult to discover. Do not use it to validate the visible row-button fix.
+
+## Still required before merging to stable
+
+- Catch-up is source-dependent: a valid XMLTV feed alone does not mean a provider offers an archive. A real authorized Catch-up channel is still needed to verify provider-specific URL templates, headers and timestamp conventions.
+- Device validation remains outstanding for remote/touch focus, day navigation, current/future/past rows, replay-to-live restoration, channel switching, rotation, regular IPTV playback, Live feed and YouTube MiniPlayer.
+- Keep PR #1 in draft and stable unchanged until those checks pass.
+
+
+
 # NM7 IPTV Mobile — STABLE 1.10.145 — Super OK-style group swipe — 2026-10-26
 
 **Source baseline locked:** `4fc8b187db7e48591e1bcb11969436a56d27d06a` (the exact 1.10.142 commit from the screenshot). This branch is based directly on that commit; neither failed swipe candidate is used as source or edited.
