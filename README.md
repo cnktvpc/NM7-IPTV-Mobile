@@ -3,31 +3,31 @@
 > **Development branch:** `feature/epg-catchup-superok-20261028`  
 > **Baseline:** accepted Mobile 1.10.145 / versionCode 162.  
 > **Candidate:** 1.10.146 / versionCode 163.  
-> **Status:** candidate code updated on the test branch; GitHub Actions is reporting failure without job records, so no APK artifact has been verified. Do not merge into stable until CI and device testing pass.
+> **CI status:** **SUCCESS** — [push build #40639183001](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40639183001) and [PR validation #40639187227](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40639187227). Unit tests, APK assembly, artifact upload and temporary-branch export passed. The stable branch has not been changed; PR #1 remains a draft pending device/provider validation.
 
-## Implemented in the candidate
+## Implemented in this candidate
 
 - XMLTV schedule model/parser with programme intervals, day navigation, channel-ID matching, and `display-name` aliases.
 - Persistent translucent lower EPG panel in the existing player, with horizontal programme cards, times, titles, state labels and current-programme progress.
 - Playback state is separate from wall-clock schedule state: the live programme remains **ĐANG PHÁT** according to the real time, while the chosen archive programme changes to **ĐANG XEM LẠI**.
-- Catch-up URL builder reads `catchup`, `catchup-source` / `catchup-url`, and `catchup-days` from original EXTINF metadata; supports full URL/default and append modes plus common start/end/duration and UTC/local placeholders.
-- The panel remains open when replay starts. The player changes to **DVR · Lịch** and can restore the original live URL/name. Replay launched from the channel action menu also carries the original live URL/name, selected programme interval and title, starts in DVR state and opens the EPG panel.
-- Added focused Catch-up unit tests and updated the build workflow to target this branch/version and run the tests before APK assembly.
+- Catch-up URL builder reads `catchup`, `catchup-source` / `catchup-url`, and `catchup-days` from original EXTINF metadata; supports full URL/default and append modes plus common start/end/duration and UTC/local placeholders. Placeholder expansion is longest-first to prevent partial replacements.
+- The panel remains open when replay starts. The player changes to **DVR · Lịch** and can restore the original live URL/name. Replay launched from the channel action menu carries the original live URL/name, selected programme interval and title, starts in DVR state and opens the EPG panel.
+- Added Catch-up unit tests, including quoted metadata, default URL construction, append mode, expiry/future rejection, and overlapping-placeholder regression coverage.
 
-## Important validation gates
+## Verified artifact
 
-- Catch-up requires valid provider archive metadata and a supported provider URL template. An XMLTV feed alone does not imply that a channel has an archive. Timestamp formats, signed parameters and request headers need validation against an authorized real source.
-- Latest observed Actions run before this code update: [run 40636615316](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40636615316). It failed without returning job records, so compile/test status and APK generation are **not confirmed**.
-- Device validation is required for remote/touch focus, day navigation, current/future/past rows, replay-to-live restoration, channel switching, rotation, regular IPTV, Live feed and YouTube MiniPlayer.
-- Stable has not been modified and PR #1 remains unmerged.
+- **GitHub Actions run:** [#40639183001](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40639183001), commit `04291b79d0f480b06dd574367f4c785ad7c41590`.
+- **Artifact:** `NM7-IPTV-Mobile-FINAL`, ID `12794439441`; uploaded by the successful run.
+- **APK filename:** `NM7-IPTV-Mobile-1.10.146-EPG-Catchup.apk`.
+- **APK SHA-256:** `86b09b5b9b6658bd61f682081bcc8f5fb52a5cdcaea5fca9cfd89e6296e69d85`.
+- APK archive integrity check passed locally and the calculated checksum matches `SHA256SUMS.txt` inside the CI artifact.
 
-## Required release checks
+## Still required before merging to stable
 
-1. Resolve the Actions failure and confirm an actual build job starts.
-2. Pass `:app:testMobileDebugUnitTest`, including `CatchupUrlBuilderTest`, and `:app:assembleMobileDebug`.
-3. Download the artifact from the successful run and verify ZIP integrity and SHA-256.
-4. Test both a known authorized archive-capable channel and a channel without Catch-up.
-5. Promote only after CI and device tests pass.
+- Catch-up is source-dependent: a valid XMLTV feed alone does not mean a provider offers an archive. A real authorized Catch-up channel is still needed to verify provider-specific URL templates, headers and timestamp conventions.
+- Device validation remains outstanding for remote/touch focus, day navigation, current/future/past rows, replay-to-live restoration, channel switching, rotation, regular IPTV playback, Live feed and YouTube MiniPlayer.
+- Keep PR #1 in draft and stable unchanged until those checks pass.
+
 
 
 # NM7 IPTV Mobile — STABLE 1.10.145 — Super OK-style group swipe — 2026-10-26
