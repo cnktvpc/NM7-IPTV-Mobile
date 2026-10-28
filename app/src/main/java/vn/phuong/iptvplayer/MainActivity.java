@@ -64,6 +64,7 @@ public final class MainActivity extends Activity {
     private ProgressBar progress;
     private int duplicateCount, missingUrlCount, activeSection;
     private String currentSource = "", selectedGroup = "", epgUrl = DEFAULT_EPG_URL;
+    private String nextPlayerLiveUrlOverride, nextPlayerLiveNameOverride;
     private boolean loading, importExpanded = true, liveOnly;
     private static final String LIVE_GROUP_TAG = "__NM7_LIVE_EVENTS__";
     private int wallpaperGeneration, playlistRequestGeneration;
@@ -507,7 +508,9 @@ public final class MainActivity extends Activity {
         i.putExtra(PlayerActivity.EXTRA_EPG_URL,epgUrl);
         i.putExtra(PlayerActivity.EXTRA_TVG_ID,c.tvgId());
         i.putExtra(PlayerActivity.EXTRA_EXTINF,c.originalExtInf());
-        i.putExtra(PlayerActivity.EXTRA_LIVE_URL,c.url());
+        i.putExtra(PlayerActivity.EXTRA_LIVE_URL,nextPlayerLiveUrlOverride == null ? c.url() : nextPlayerLiveUrlOverride);
+        i.putExtra(PlayerActivity.EXTRA_LIVE_NAME,nextPlayerLiveNameOverride == null ? c.name() : nextPlayerLiveNameOverride);
+        nextPlayerLiveUrlOverride=null;nextPlayerLiveNameOverride=null;
         i.putStringArrayListExtra(PlayerActivity.EXTRA_OPTIONS,new ArrayList<>(c.options()));
         if(liveEvent!=null)i.putExtra(PlayerActivity.EXTRA_LIVE_EVENT,LivePlaybackSession.encode(liveEvent.withPreferredUrl(c.url())));
         startActivity(i);
@@ -741,6 +744,8 @@ public final class MainActivity extends Activity {
                         channel.tvgLogo(),channel.logoUrl(),channel.iconUrl(),channel.tvgId(),channel.headers());
                 archive.setOriginalExtInf(channel.originalExtInf());
                 archive.options().addAll(channel.options());
+                nextPlayerLiveUrlOverride=channel.url();
+                nextPlayerLiveNameOverride=channel.name();
                 play(archive);
                 toast("ĐANG XEM LẠI: "+selected.title);
             }catch(Exception error){showError("Không tạo được URL xem lại: "+readable(error));}

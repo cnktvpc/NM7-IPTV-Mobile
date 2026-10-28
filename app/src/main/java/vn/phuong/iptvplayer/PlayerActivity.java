@@ -2,6 +2,7 @@ package vn.phuong.iptvplayer;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.graphics.drawable.GradientDrawable;
 import android.content.pm.ActivityInfo;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
@@ -16,6 +17,7 @@ import android.widget.TextView;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
@@ -67,6 +69,7 @@ public final class PlayerActivity extends Activity {
     public static final String EXTRA_TVG_ID = "tvg_id";
     public static final String EXTRA_EXTINF = "original_extinf";
     public static final String EXTRA_LIVE_URL = "original_live_url";
+    public static final String EXTRA_LIVE_NAME = "original_live_name";
     private LiveEvent liveEvent;
     private ExoPlayer player;
     private PlayerView playerView;
@@ -76,6 +79,14 @@ public final class PlayerActivity extends Activity {
     private String liveUrl = "", epgUrl = "", epgTvgId = "", epgExtInf = "";
     private String liveName = "";
     private boolean catchupMode;
+    private View epgPanel;
+    private TextView epgPanelDate;
+    private LinearLayout epgProgrammeRow;
+    private EpgScheduleStore.Schedule epgSchedule;
+    private boolean epgLoading;
+    private int epgDayOffset;
+    private long replayProgrammeStartMs = -1L;
+    private long replayProgrammeEndMs = -1L;
     private String drmSystem = "", drmLicense = "";
     private ArrayList<String> options = new ArrayList<>();
     private Bundle currentHeaders = new Bundle();
@@ -146,7 +157,8 @@ public final class PlayerActivity extends Activity {
         setContentView(R.layout.activity_player);
         Insets.apply(findViewById(R.id.playerRoot));
         url = value(EXTRA_URL); name = value(EXTRA_NAME); mime = value(EXTRA_MIME);
-        liveName = name;
+        String passedLiveName = getIntent().getStringExtra(EXTRA_LIVE_NAME);
+        liveName = passedLiveName == null || passedLiveName.trim().isEmpty() ? name : passedLiveName;
         liveUrl = getIntent().getStringExtra(EXTRA_LIVE_URL);
         if (liveUrl == null || liveUrl.isEmpty()) liveUrl = url;
         epgUrl = value(EXTRA_EPG_URL); epgTvgId = value(EXTRA_TVG_ID); epgExtInf = value(EXTRA_EXTINF);
@@ -162,6 +174,7 @@ public final class PlayerActivity extends Activity {
                 resumePlayback = saved.playing;
             }
         }
+        if (passedLiveName == null || passedLiveName.trim().isEmpty()) liveName = name;
         ArrayList<String> passedOptions = getIntent().getStringArrayListExtra(EXTRA_OPTIONS);
         if (passedOptions != null) options = passedOptions;
         Bundle passedHeaders = getIntent().getBundleExtra(EXTRA_HEADERS);
@@ -189,7 +202,15 @@ public final class PlayerActivity extends Activity {
         playerView.setResizeMode(resizeMode); ((TextView) findViewById(R.id.txtPlayerTitle)).setText(name);
         TextView source = findViewById(R.id.txtPlayerUrl); source.setText(url); source.setVisibility(AppPreferences.showPlayerSource(this) ? View.VISIBLE : View.GONE); source.setOnClickListener(v -> showSource());
         playerView.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) visibility -> findViewById(R.id.playerHeader).setVisibility(visibility));
-        findViewById(R.id.btnBack).setOnClickListener(v -> { if (catchupMode) returnToLive(); else finish(); }); findViewById(R.id.btnEpg).setOnClickListener(v -> showPlayerEpg(0)); findViewById(R.id.btnQuality).setOnClickListener(v -> chooseQuality());
+        epgPanel = findViewById(R.id.epgPanel);
+        epgPanelDate = findViewById(R.id.epgPanelDate);
+        epgProgrammeRow = findViewById(R.id.epgProgrammeRow);
+        findViewById(R.id.btnEpgPrev).setOnClickListener(v -> showPlayerEpg(epgDayOffset - 1));
+        findViewById(R.id.btnEpgNext).setOnClickListener(v -> showPlayerEpg(epgDayOffset + 1));
+        findViewById(R.id.btnEpgClose).setOnClickListener(v -> epgPanel.setVisibility(View.GONE));
+        findViewById(R.id.btnBack).setOnClickListener(v -> { if (catchupMode) returnToLive(); else finish(); });
+        findViewById(R.id.btnEpg).setOnClickListener(v -> { if (epgPanel.getVisibility() == View.VISIBLE) epgPanel.setVisibility(View.GONE); else showPlayerEpg(epgDayOffset); });
+        findViewById(R.id.btnQuality).setOnClickListener(v -> chooseQuality());
         findViewById(R.id.btnFormat).setOnClickListener(v -> chooseFormat()); View rotateButton = findViewById(R.id.btnRotate); if (rotateButton != null) rotateButton.setOnClickListener(v -> chooseOrientation());
         findViewById(R.id.btnDrm).setOnClickListener(v -> configureDrm()); findViewById(R.id.btnResize).setOnClickListener(v -> chooseResizeMode());
         findViewById(R.id.btnLiveServer).setOnClickListener(v -> showLiveServerPicker());
@@ -204,81 +225,117 @@ public final class PlayerActivity extends Activity {
     private Channel epgChannel(){
         Map<String,String> headers=new LinkedHashMap<>();
         for(String key:currentHeaders.keySet()){String value=currentHeaders.getString(key);if(value!=null)headers.put(key,value);}
-        Channel channel=new Channel(liveName, "", liveUrl, "", epgTvgId, headers);
+        Channel channel=new Channel(liveName,"",liveUrl,"",epgTvgId,headers);
         channel.setOriginalExtInf(epgExtInf);
         channel.options().addAll(options);
         return channel;
     }
 
+    private int epgDp(int value){return Math.round(value*getResources().getDisplayMetrics().density);}
+
     private void showPlayerEpg(int dayOffset){
-        if(epgUrl==null||epgUrl.isEmpty()){new AlertDialog.Builder(this).setTitle("Lịch phát sóng").setMessage("Chưa có URL EPG. Hãy cấu hình lịch trong Tùy chọn IPTV.").setPositiveButton("Đóng",null).show();return;}
+        epgDayOffset=dayOffset;
+        if(epgPanel!=null)epgPanel.setVisibility(View.VISIBLE);
+        if(epgSchedule!=null){renderPlayerEpg(dayOffset);return;}
+        if(epgUrl==null||epgUrl.trim().isEmpty()){
+            epgPanelDate.setText("Lịch phát sóng · Chưa cấu hình URL EPG");
+            epgProgrammeRow.removeAllViews();addEpgMessage("Hãy cấu hình URL EPG trong Tùy chọn IPTV.");return;
+        }
+        if(epgLoading)return;
+        epgLoading=true;epgPanelDate.setText("Đang tải lịch phát sóng…");
+        epgProgrammeRow.removeAllViews();addEpgMessage("Đang tải dữ liệu chương trình…");
         new Thread(()->{
+            HttpURLConnection connection=null;
             try{
-                HttpURLConnection connection=(HttpURLConnection)new URL(epgUrl).openConnection();
+                connection=(HttpURLConnection)new URL(epgUrl).openConnection();
                 connection.setConnectTimeout(12000);connection.setReadTimeout(25000);
+                connection.setInstanceFollowRedirects(true);
                 connection.setRequestProperty("User-Agent","Nm7-IPTV/1.10.146 Android");
                 connection.setRequestProperty("Accept-Encoding","gzip");
-                try{
-                    int code=connection.getResponseCode();
-                    if(code<200||code>=300)throw new Exception("HTTP "+code);
-                    try(InputStream raw=new BufferedInputStream(connection.getInputStream());
-                        InputStream input=EpgStore.isGzip(epgUrl,connection)?new GZIPInputStream(raw):raw){
-                        EpgScheduleStore.Schedule schedule=EpgScheduleStore.parse(input);
-                        runOnUiThread(()->showPlayerEpgDialog(schedule,dayOffset));
-                    }
-                }finally{connection.disconnect();}
-            }catch(Exception error){runOnUiThread(()->new AlertDialog.Builder(this).setTitle("Lịch phát sóng").setMessage("Không tải được EPG: "+error.getMessage()).setPositiveButton("Đóng",null).show());}
+                int code=connection.getResponseCode();
+                if(code<200||code>=300)throw new Exception("HTTP "+code);
+                try(InputStream raw=new BufferedInputStream(connection.getInputStream());
+                    InputStream input=EpgStore.isGzip(epgUrl,connection)?new GZIPInputStream(raw):raw){
+                    EpgScheduleStore.Schedule result=EpgScheduleStore.parse(input);
+                    runOnUiThread(()->{epgLoading=false;epgSchedule=result;renderPlayerEpg(epgDayOffset);});
+                }
+            }catch(Exception error){
+                runOnUiThread(()->{epgLoading=false;epgPanelDate.setText("Lịch phát sóng · Không tải được EPG");epgProgrammeRow.removeAllViews();addEpgMessage("Lỗi: "+(error.getMessage()==null?error.getClass().getSimpleName():error.getMessage()));});
+            }finally{if(connection!=null)connection.disconnect();}
         },"nm7-player-epg").start();
     }
 
-    private void showPlayerEpgDialog(EpgScheduleStore.Schedule schedule,int dayOffset){
-        java.util.Calendar day=java.util.Calendar.getInstance();
-        day.add(java.util.Calendar.DAY_OF_YEAR,dayOffset);
+    private void addEpgMessage(String message){
+        TextView view=new TextView(this);view.setText(message);view.setTextColor(0xFFE3EAF3);view.setTextSize(14f);
+        view.setPadding(epgDp(12),epgDp(12),epgDp(12),epgDp(12));
+        epgProgrammeRow.addView(view,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,epgDp(84)));
+    }
+
+    private void renderPlayerEpg(int dayOffset){
+        epgDayOffset=dayOffset;
+        if(epgSchedule==null){showPlayerEpg(dayOffset);return;}
+        java.util.Calendar day=java.util.Calendar.getInstance();day.add(java.util.Calendar.DAY_OF_YEAR,dayOffset);
         day.set(java.util.Calendar.HOUR_OF_DAY,0);day.set(java.util.Calendar.MINUTE,0);day.set(java.util.Calendar.SECOND,0);day.set(java.util.Calendar.MILLISECOND,0);
         long dayStart=day.getTimeInMillis(),now=System.currentTimeMillis();
-        List<EpgProgram> programmes=schedule.forChannel(epgChannel(),dayStart);
-        String date=new java.text.SimpleDateFormat("EEE dd/MM/yyyy",Locale.getDefault()).format(new Date(dayStart));
-        if(programmes.isEmpty()){
-            new AlertDialog.Builder(this).setTitle("LỊCH PHÁT SÓNG · "+date)
-                .setMessage("Không tìm thấy lịch cho kênh "+liveName+". Kiểm tra tvg-id và URL EPG.")
-                .setNeutralButton("Ngày trước",(d,w)->showPlayerEpg(dayOffset-1))
-                .setPositiveButton("Ngày sau",(d,w)->showPlayerEpg(dayOffset+1)).setNegativeButton("Đóng",null).show();return;
+        String date=new SimpleDateFormat("EEE dd/MM/yyyy",Locale.getDefault()).format(new Date(dayStart));
+        epgPanelDate.setText("LỊCH PHÁT SÓNG · "+liveName+" · "+date);
+        List<EpgProgram> programmes=epgSchedule.forChannel(epgChannel(),dayStart);epgProgrammeRow.removeAllViews();
+        if(programmes.isEmpty()){addEpgMessage("Không tìm thấy lịch cho "+liveName+". Kiểm tra tvg-id hoặc URL EPG.");return;}
+        SimpleDateFormat timeFormat=new SimpleDateFormat("HH:mm",Locale.getDefault());
+        for(EpgProgram programme:programmes){
+            boolean replaySelected=catchupMode&&programme.startMs==replayProgrammeStartMs&&programme.endMs==replayProgrammeEndMs;
+            boolean current=programme.isCurrent(now),future=programme.isFuture(now);
+            boolean replayAvailable=CatchupUrlBuilder.canReplay(epgChannel(),programme,now);
+            String state=replaySelected?"ĐANG XEM LẠI":current?"ĐANG PHÁT":future?"SẮP PHÁT":replayAvailable?"XEM LẠI":"ĐÃ PHÁT";
+            LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setPadding(epgDp(12),epgDp(9),epgDp(12),epgDp(9));
+            LinearLayout.LayoutParams cardParams=new LinearLayout.LayoutParams(epgDp(228),LinearLayout.LayoutParams.WRAP_CONTENT);cardParams.setMargins(0,0,epgDp(8),0);card.setLayoutParams(cardParams);
+            card.setFocusable(true);card.setClickable(true);
+            GradientDrawable background=new GradientDrawable();
+            background.setColor(replaySelected?0xF0244771:current?0xF018493C:0xE61A2636);background.setCornerRadius(epgDp(8));
+            background.setStroke(epgDp(1),replaySelected?0xFF41A5FF:current?0xFF39C78A:0xFF43536A);card.setBackground(background);
+            TextView time=new TextView(this);time.setText(timeFormat.format(new Date(programme.startMs))+" – "+timeFormat.format(new Date(programme.endMs)));
+            time.setTextColor(0xFF9DB5CE);time.setTextSize(12f);card.addView(time);
+            TextView title=new TextView(this);title.setText(programme.title);title.setTextColor(0xFFFFFFFF);title.setTextSize(14f);
+            title.setTypeface(null,android.graphics.Typeface.BOLD);title.setMaxLines(2);title.setMinHeight(epgDp(38));title.setPadding(0,epgDp(3),0,epgDp(5));card.addView(title);
+            TextView stateView=new TextView(this);stateView.setText(state);
+            stateView.setTextColor(replaySelected?0xFF7EC2FF:current?0xFF61E0A8:future?0xFFFFCE74:replayAvailable?0xFF7EC2FF:0xFF9DB5CE);
+            stateView.setTextSize(11f);stateView.setTypeface(null,android.graphics.Typeface.BOLD);card.addView(stateView);
+            if(current&&!replaySelected){
+                ProgressBar progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setMax(100);
+                long span=programme.endMs-programme.startMs;progress.setProgress(span<=0?0:(int)Math.max(0,Math.min(100,(now-programme.startMs)*100/span)));
+                LinearLayout.LayoutParams progressParams=new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,epgDp(4));progressParams.topMargin=epgDp(7);card.addView(progress,progressParams);
+            }
+            card.setContentDescription(time.getText()+" "+programme.title+" · "+state);
+            card.setOnClickListener(v->selectEpgProgram(programme));
+            card.setOnFocusChangeListener((v,focused)->{if(focused){v.setScaleX(1.025f);v.setScaleY(1.025f);}else{v.setScaleX(1f);v.setScaleY(1f);}});
+            epgProgrammeRow.addView(card);
         }
-        String[] labels=new String[programmes.size()];
-        for(int i=0;i<programmes.size();i++){
-            EpgProgram p=programmes.get(i);
-            String state=p.isCurrent(now)?"  ● ĐANG PHÁT":p.isFuture(now)?"  • Sắp phát":CatchupUrlBuilder.canReplay(epgChannel(),p,now)?"  ◀ Xem lại":"";
-            labels[i]=new java.text.SimpleDateFormat("HH:mm",Locale.getDefault()).format(new Date(p.startMs))+"–"+
-                new java.text.SimpleDateFormat("HH:mm",Locale.getDefault()).format(new Date(p.endMs))+"  "+p.title+state;
-        }
-        new AlertDialog.Builder(this).setTitle("LỊCH PHÁT SÓNG · "+date)
-            .setItems(labels,(d,which)->{
-                if(which<0||which>=programmes.size())return;
-                EpgProgram selected=programmes.get(which);long at=System.currentTimeMillis();
-                if(selected.isCurrent(at)){returnToLive();return;}
-                if(selected.isFuture(at)){new AlertDialog.Builder(this).setMessage("Chương trình chưa phát sóng.").setPositiveButton("Đóng",null).show();return;}
-                Channel source=epgChannel();
-                if(!CatchupUrlBuilder.canReplay(source,selected,at)){
-                    new AlertDialog.Builder(this).setTitle(selected.title).setMessage("Kênh không có Catch-up hợp lệ hoặc chương trình đã quá hạn lưu trữ.").setPositiveButton("Đóng",null).show();return;
-                }
-                try{
-                    url=CatchupUrlBuilder.build(source,selected,at);position=0;resumePlayback=true;catchupMode=true;
-                    ((TextView)findViewById(R.id.txtPlayerTitle)).setText("DVR · "+selected.title);
-                    ((Button)findViewById(R.id.btnEpg)).setText("DVR · Lịch");
-                    TextView sourceText=findViewById(R.id.txtPlayerUrl);sourceText.setText(url);
-                    releasePlayer();startPlayer();
-                }catch(Exception error){new AlertDialog.Builder(this).setTitle("Không thể xem lại").setMessage(error.getMessage()).setPositiveButton("Đóng",null).show();}
-            }).setNeutralButton("Ngày trước",(d,w)->showPlayerEpg(dayOffset-1))
-            .setPositiveButton("Ngày sau",(d,w)->showPlayerEpg(dayOffset+1)).setNegativeButton("Đóng",null).show();
+    }
+
+    private void selectEpgProgram(EpgProgram selected){
+        long now=System.currentTimeMillis();
+        if(selected.isCurrent(now)){if(catchupMode)returnToLive();else android.widget.Toast.makeText(this,"Đang phát trực tiếp",android.widget.Toast.LENGTH_SHORT).show();return;}
+        if(selected.isFuture(now)){android.widget.Toast.makeText(this,"Chương trình chưa phát sóng",android.widget.Toast.LENGTH_SHORT).show();return;}
+        Channel source=epgChannel();
+        if(!CatchupUrlBuilder.canReplay(source,selected,now)){android.widget.Toast.makeText(this,"Kênh không có Catch-up hợp lệ hoặc chương trình đã quá hạn lưu trữ.",android.widget.Toast.LENGTH_LONG).show();return;}
+        try{
+            url=CatchupUrlBuilder.build(source,selected,now);position=0;resumePlayback=true;catchupMode=true;
+            replayProgrammeStartMs=selected.startMs;replayProgrammeEndMs=selected.endMs;
+            ((TextView)findViewById(R.id.txtPlayerTitle)).setText("DVR · "+selected.title);
+            ((Button)findViewById(R.id.btnEpg)).setText("DVR · Lịch");
+            TextView sourceText=findViewById(R.id.txtPlayerUrl);sourceText.setText(url);
+            releasePlayer();startPlayer();renderPlayerEpg(epgDayOffset);
+            android.widget.Toast.makeText(this,"ĐANG XEM LẠI: "+selected.title,android.widget.Toast.LENGTH_SHORT).show();
+        }catch(Exception error){android.widget.Toast.makeText(this,"Không thể xem lại: "+(error.getMessage()==null?error.getClass().getSimpleName():error.getMessage()),android.widget.Toast.LENGTH_LONG).show();}
     }
 
     private void returnToLive(){
         if(!catchupMode)return;
-        catchupMode=false;url=liveUrl;position=0;resumePlayback=true;
-        ((TextView)findViewById(R.id.txtPlayerTitle)).setText(liveName);
-        ((Button)findViewById(R.id.btnEpg)).setText("Lịch");
+        catchupMode=false;replayProgrammeStartMs=-1L;replayProgrammeEndMs=-1L;url=liveUrl;position=0;resumePlayback=true;
+        ((TextView)findViewById(R.id.txtPlayerTitle)).setText(liveName);((Button)findViewById(R.id.btnEpg)).setText("Lịch");
         TextView sourceText=findViewById(R.id.txtPlayerUrl);sourceText.setText(url);
         releasePlayer();startPlayer();
+        if(epgSchedule!=null&&epgPanel!=null&&epgPanel.getVisibility()==View.VISIBLE)renderPlayerEpg(epgDayOffset);
     }
     private boolean playbackContextActive(){return activityStarted||backgroundPlaybackActive;}
     private static DefaultLoadControl stableLoadControl(){return new DefaultLoadControl.Builder().setBufferDurationsMs(2_500,10_000,400,1_200).setBackBuffer(0,false).setPrioritizeTimeOverSizeThresholds(true).build();}
@@ -446,6 +503,10 @@ public final class PlayerActivity extends Activity {
             return;
         }
         name=c.name();url=c.url();mime=c.mimeHint();options=new ArrayList<>(c.options());
+        liveName=name;liveUrl=url;epgTvgId=c.tvgId();epgExtInf=c.originalExtInf();
+        epgSchedule=null;epgLoading=false;catchupMode=false;replayProgrammeStartMs=-1L;replayProgrammeEndMs=-1L;
+        ((Button)findViewById(R.id.btnEpg)).setText("Lịch");
+        if(epgPanel!=null)epgPanel.setVisibility(View.GONE);
         if(liveEvent!=null){
             liveEvent=liveEvent.withPreferredUrl(url);
             LivePlaybackSession.setActive(liveEvent);
@@ -454,7 +515,7 @@ public final class PlayerActivity extends Activity {
         DrmSpec d=DrmSpec.fromOptions(options);drmSystem=d.system;drmLicense=d.license;
         currentHeaders=new Bundle();for(Map.Entry<String,String> e:c.headers().entrySet())currentHeaders.putString(e.getKey(),e.getValue());
         getIntent().putExtra(EXTRA_NAME,name);getIntent().putExtra(EXTRA_URL,url);getIntent().putExtra(EXTRA_HEADERS,currentHeaders);
-        getIntent().putExtra(EXTRA_MIME,mime);getIntent().putStringArrayListExtra(EXTRA_OPTIONS,options);
+        getIntent().putExtra(EXTRA_MIME,mime);getIntent().putStringArrayListExtra(EXTRA_OPTIONS,options);getIntent().putExtra(EXTRA_LIVE_URL,liveUrl);getIntent().putExtra(EXTRA_LIVE_NAME,liveName);getIntent().putExtra(EXTRA_TVG_ID,epgTvgId);getIntent().putExtra(EXTRA_EXTINF,epgExtInf);
         if(liveEvent!=null)getIntent().putExtra(EXTRA_LIVE_EVENT,LivePlaybackSession.encode(liveEvent));
         else getIntent().removeExtra(EXTRA_LIVE_EVENT);
         ((TextView)findViewById(R.id.txtPlayerTitle)).setText(name);((TextView)findViewById(R.id.txtPlayerUrl)).setText(url);

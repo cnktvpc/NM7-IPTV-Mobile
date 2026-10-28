@@ -1,36 +1,34 @@
-# NM7 IPTV Mobile — Candidate 1.10.146 — EPG schedule + Catch-up — 2026-10-28
+# NM7 IPTV Mobile — Candidate 1.10.146 — Super OK-style EPG / Catch-up — 2026-10-28
 
 > **Development branch:** `feature/epg-catchup-superok-20261028`  
-> **Baseline:** `main` / stable Mobile 1.10.145 documented in this repository.  
-> **Version:** 1.10.146 / versionCode 163.  
-> **Status:** implementation candidate; CI and real-device playback validation pending. Do not merge into stable before verification.
+> **Baseline:** accepted Mobile 1.10.145 / versionCode 162.  
+> **Candidate:** 1.10.146 / versionCode 163.  
+> **Status:** candidate code updated on the test branch; GitHub Actions is reporting failure without job records, so no APK artifact has been verified. Do not merge into stable until CI and device testing pass.
 
-## EPG / Catch-up implementation candidate
+## Implemented in the candidate
 
-- Added `EpgProgram` to model a full programme interval and classify past/current/future states.
-- Added `EpgScheduleStore` to parse XMLTV programme history, sort schedules, filter by selected day and resolve channel IDs/names.
-- Added `CatchupUrlBuilder` to read `catchup`, `catchup-source` / `catchup-url`, and `catchup-days` from the channel's original EXTINF metadata. It supports full-URL/default and query-append modes, start/end/duration placeholders, validates the archive window, and never overwrites the live channel URL.
-- Added **Lịch** in the player header plus **Lịch phát sóng / Xem lại** in the channel action menu. The player entry loads XMLTV off the UI thread, shows day-based programme rows, and switches the current player to a replay URL without creating a second player Activity. The player button changes to **DVR · Lịch** during replay; Back restores the original live URL.
-- Added unit tests for metadata parsing, URL building, append mode, expiry and future programmes.
-- Existing player, LIVE feed, YouTube MiniPlayer and stable branch are not intentionally modified outside this candidate.
+- XMLTV schedule model/parser with programme intervals, day navigation, channel-ID matching, and `display-name` aliases.
+- Persistent translucent lower EPG panel in the existing player, with horizontal programme cards, times, titles, state labels and current-programme progress.
+- Playback state is separate from wall-clock schedule state: the live programme remains **ĐANG PHÁT** according to the real time, while the chosen archive programme changes to **ĐANG XEM LẠI**.
+- Catch-up URL builder reads `catchup`, `catchup-source` / `catchup-url`, and `catchup-days` from original EXTINF metadata; supports full URL/default and append modes plus common start/end/duration and UTC/local placeholders.
+- The panel remains open when replay starts. The player changes to **DVR · Lịch** and can restore the original live URL/name. Replay launched from the channel action menu also carries the real live URL/name into PlayerActivity.
+- Added focused Catch-up unit tests and updated the build workflow to target this branch/version and run the tests before APK assembly.
 
-## Known limitations before calling this complete
+## Important validation gates
 
-- The current UI uses an in-player dialog/list, not yet Super OK's exact persistent lower overlay. DVR state is shown on the EPG button, but a dedicated archive progress bar / remaining-time presentation still needs device validation.
-- Provider-specific placeholders vary. The builder must be tested against the actual NM7 playlist sources; do not assume every provider accepts the same timestamp format.
-- XMLTV ID/name fallback cannot guarantee correct matching where provider identifiers are ambiguous.
-- CI build, unit tests, and device verification have not yet been confirmed in this note.
+- Catch-up requires valid provider archive metadata and a supported provider URL template. An XMLTV feed alone does not imply that a channel has an archive. Timestamp formats, signed parameters and request headers need validation against an authorized real source.
+- Latest observed Actions run before this code update: [run 40636615316](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40636615316). It failed without returning job records, so compile/test status and APK generation are **not confirmed**.
+- Device validation is required for remote/touch focus, day navigation, current/future/past rows, replay-to-live restoration, channel switching, rotation, regular IPTV, Live feed and YouTube MiniPlayer.
+- Stable has not been modified and PR #1 remains unmerged.
 
-## Required verification
+## Required release checks
 
-1. Run `:app:testMobileDebugUnitTest`, lint and `:app:assembleMobileDebug`.
-2. Test a channel with a known working archive URL and one without Catch-up.
-3. Check timestamp units, timezone, URL query composition, required headers, archive retention and HTTP errors.
-4. Confirm LIVE remains separate from EPG's real-time programme status; exit DVR and return to the original live channel.
-5. Regression-test normal IPTV, Live feed, YouTube MiniPlayer, channel switching and app navigation.
-6. Only after the in-player panel and DVR state match the reference video, consider the feature ready for review.
+1. Resolve the Actions failure and confirm an actual build job starts.
+2. Pass `:app:testMobileDebugUnitTest`, including `CatchupUrlBuilderTest`, and `:app:assembleMobileDebug`.
+3. Download the artifact from the successful run and verify ZIP integrity and SHA-256.
+4. Test both a known authorized archive-capable channel and a channel without Catch-up.
+5. Promote only after CI and device tests pass.
 
----
 
 # NM7 IPTV Mobile — STABLE 1.10.145 — Super OK-style group swipe — 2026-10-26
 

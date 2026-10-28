@@ -55,12 +55,22 @@ final class EpgScheduleStore {
         parser.setInput(input, "UTF-8");
         Map<String,List<EpgProgram>> schedules = new HashMap<>();
         String channel = "", title = "", desc = "";
+        String definitionId = "";
+        Map<String,String> displayNameToId = new HashMap<>();
         long start = 0, end = 0;
         int event = parser.getEventType();
         while (event != XmlPullParser.END_DOCUMENT) {
             if (event == XmlPullParser.START_TAG) {
                 String tag = parser.getName();
-                if ("programme".equals(tag)) {
+                if ("channel".equals(tag)) {
+                    definitionId = value(parser, "id");
+                } else if ("display-name".equals(tag) && !definitionId.isEmpty()) {
+                    String displayName = parser.nextText().trim();
+                    if (!displayName.isEmpty()) {
+                        displayNameToId.put(displayName, definitionId);
+                        displayNameToId.put(normalize(displayName), definitionId);
+                    }
+                } else if ("programme".equals(tag)) {
                     channel = value(parser, "channel");
                     start = parseTime(value(parser, "start"));
                     end = parseTime(value(parser, "stop"));
@@ -74,6 +84,8 @@ final class EpgScheduleStore {
                 EpgProgram p = new EpgProgram(channel,title,start,end,desc);
                 if (p.isValid() && !channel.isEmpty()) schedules.computeIfAbsent(channel,k->new ArrayList<>()).add(p);
                 channel = "";
+            } else if (event == XmlPullParser.END_TAG && "channel".equals(parser.getName())) {
+                definitionId = "";
             }
             event = parser.next();
         }
@@ -82,6 +94,14 @@ final class EpgScheduleStore {
         for (Map.Entry<String,List<EpgProgram>> entry : schedules.entrySet()) {
             String key = normalize(entry.getKey());
             if (!key.isEmpty()) aliases.putIfAbsent(key, entry.getValue());
+        }
+        for (Map.Entry<String,String> alias : displayNameToId.entrySet()) {
+            List<EpgProgram> programmes = schedules.get(alias.getValue());
+            if (programmes != null) {
+                aliases.putIfAbsent(alias.getKey(), programmes);
+                String key = normalize(alias.getKey());
+                if (!key.isEmpty()) aliases.putIfAbsent(key, programmes);
+            }
         }
         return new Schedule(aliases);
     }
