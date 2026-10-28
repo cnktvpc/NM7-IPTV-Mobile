@@ -9,11 +9,25 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
+      - name: Checkout test branch
+        uses: actions/checkout@v4
       - name: Confirm GitHub-hosted runner starts
         run: |
           set -euxo pipefail
           echo "NM7 EPG branch runner probe"
           echo "Ref: ${GITHUB_REF}"
           echo "Commit: ${GITHUB_SHA}"
+      - name: Install actionlint
+        run: |
+          set -euxo pipefail
+          curl --fail --silent --show-error --location \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz \
+            --output /tmp/actionlint.tar.gz
+          tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
+          /tmp/actionlint -version
+      - name: Validate all NM7 workflow files
+        run: |
+          set -euxo pipefail
+          /tmp/actionlint -no-color -oneline .github/workflows/android-mobile-final.yml .github/workflows/epg-catchup-actions-probe.yml
