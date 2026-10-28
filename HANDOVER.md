@@ -13,7 +13,7 @@
 - `EpgProgram.java`: programme interval model with past/current/future classification.
 - `EpgScheduleStore.java`: XMLTV parser, day filtering and channel ID plus `display-name` alias matching.
 - `CatchupUrlBuilder.java`: reads Catch-up metadata from the original EXTINF; builds full URL/default or append-query URLs with supported start/end/duration and UTC/local placeholders; checks archive age without mutating the live source.
-- `activity_player.xml` / `PlayerActivity.java`: persistent translucent lower EPG panel, day navigation, horizontal programme cards, live progress indicator, separate wall-clock state and selected replay state. Replay starts in the existing player and the panel remains open.
+- `activity_player.xml` / `PlayerActivity.java`: persistent translucent lower EPG panel, day navigation, horizontal programme cards, live progress indicator, separate wall-clock state and selected replay state. Replay starts in the existing player and the panel remains open. When replay is selected from the channel action-menu schedule, the player receives the original live source and selected programme range, opens directly in DVR mode, and can return to live.
 - `MainActivity.java`: channel action menu and original live URL/name pass-through for replay launched from the channel list.
 - `CatchupUrlBuilderTest.java`: metadata parsing, default URL, append mode, archive expiry and future-programme rejection.
 - `.github/workflows/android-mobile-final.yml`: feature branch push trigger, candidate version check (1.10.146 / 163), Catch-up tests before assemble, and APK export naming.

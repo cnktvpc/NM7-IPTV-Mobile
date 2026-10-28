@@ -64,7 +64,9 @@ public final class MainActivity extends Activity {
     private ProgressBar progress;
     private int duplicateCount, missingUrlCount, activeSection;
     private String currentSource = "", selectedGroup = "", epgUrl = DEFAULT_EPG_URL;
-    private String nextPlayerLiveUrlOverride, nextPlayerLiveNameOverride;
+    private String nextPlayerLiveUrlOverride, nextPlayerLiveNameOverride, nextPlayerReplayTitleOverride;
+    private boolean nextPlayerStartsCatchup;
+    private long nextPlayerReplayStartMs = -1L, nextPlayerReplayEndMs = -1L;
     private boolean loading, importExpanded = true, liveOnly;
     private static final String LIVE_GROUP_TAG = "__NM7_LIVE_EVENTS__";
     private int wallpaperGeneration, playlistRequestGeneration;
@@ -510,7 +512,12 @@ public final class MainActivity extends Activity {
         i.putExtra(PlayerActivity.EXTRA_EXTINF,c.originalExtInf());
         i.putExtra(PlayerActivity.EXTRA_LIVE_URL,nextPlayerLiveUrlOverride == null ? c.url() : nextPlayerLiveUrlOverride);
         i.putExtra(PlayerActivity.EXTRA_LIVE_NAME,nextPlayerLiveNameOverride == null ? c.name() : nextPlayerLiveNameOverride);
-        nextPlayerLiveUrlOverride=null;nextPlayerLiveNameOverride=null;
+        i.putExtra(PlayerActivity.EXTRA_START_CATCHUP,nextPlayerStartsCatchup);
+        i.putExtra(PlayerActivity.EXTRA_REPLAY_START_MS,nextPlayerReplayStartMs);
+        i.putExtra(PlayerActivity.EXTRA_REPLAY_END_MS,nextPlayerReplayEndMs);
+        i.putExtra(PlayerActivity.EXTRA_REPLAY_TITLE,nextPlayerReplayTitleOverride == null ? "" : nextPlayerReplayTitleOverride);
+        nextPlayerLiveUrlOverride=null;nextPlayerLiveNameOverride=null;nextPlayerReplayTitleOverride=null;
+        nextPlayerStartsCatchup=false;nextPlayerReplayStartMs=-1L;nextPlayerReplayEndMs=-1L;
         i.putStringArrayListExtra(PlayerActivity.EXTRA_OPTIONS,new ArrayList<>(c.options()));
         if(liveEvent!=null)i.putExtra(PlayerActivity.EXTRA_LIVE_EVENT,LivePlaybackSession.encode(liveEvent.withPreferredUrl(c.url())));
         startActivity(i);
@@ -746,6 +753,10 @@ public final class MainActivity extends Activity {
                 archive.options().addAll(channel.options());
                 nextPlayerLiveUrlOverride=channel.url();
                 nextPlayerLiveNameOverride=channel.name();
+                nextPlayerStartsCatchup=true;
+                nextPlayerReplayStartMs=selected.startMs;
+                nextPlayerReplayEndMs=selected.endMs;
+                nextPlayerReplayTitleOverride=selected.title;
                 play(archive);
                 toast("ĐANG XEM LẠI: "+selected.title);
             }catch(Exception error){showError("Không tạo được URL xem lại: "+readable(error));}

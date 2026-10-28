@@ -11,7 +11,7 @@
 - Persistent translucent lower EPG panel in the existing player, with horizontal programme cards, times, titles, state labels and current-programme progress.
 - Playback state is separate from wall-clock schedule state: the live programme remains **ĐANG PHÁT** according to the real time, while the chosen archive programme changes to **ĐANG XEM LẠI**.
 - Catch-up URL builder reads `catchup`, `catchup-source` / `catchup-url`, and `catchup-days` from original EXTINF metadata; supports full URL/default and append modes plus common start/end/duration and UTC/local placeholders.
-- The panel remains open when replay starts. The player changes to **DVR · Lịch** and can restore the original live URL/name. Replay launched from the channel action menu also carries the real live URL/name into PlayerActivity.
+- The panel remains open when replay starts. The player changes to **DVR · Lịch** and can restore the original live URL/name. Replay launched from the channel action menu also carries the original live URL/name, selected programme interval and title, starts in DVR state and opens the EPG panel.
 - Added focused Catch-up unit tests and updated the build workflow to target this branch/version and run the tests before APK assembly.
 
 ## Important validation gates

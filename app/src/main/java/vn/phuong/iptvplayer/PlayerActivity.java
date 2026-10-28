@@ -70,6 +70,10 @@ public final class PlayerActivity extends Activity {
     public static final String EXTRA_EXTINF = "original_extinf";
     public static final String EXTRA_LIVE_URL = "original_live_url";
     public static final String EXTRA_LIVE_NAME = "original_live_name";
+    public static final String EXTRA_START_CATCHUP = "start_catchup";
+    public static final String EXTRA_REPLAY_START_MS = "replay_start_ms";
+    public static final String EXTRA_REPLAY_END_MS = "replay_end_ms";
+    public static final String EXTRA_REPLAY_TITLE = "replay_title";
     private LiveEvent liveEvent;
     private ExoPlayer player;
     private PlayerView playerView;
@@ -159,6 +163,9 @@ public final class PlayerActivity extends Activity {
         url = value(EXTRA_URL); name = value(EXTRA_NAME); mime = value(EXTRA_MIME);
         String passedLiveName = getIntent().getStringExtra(EXTRA_LIVE_NAME);
         liveName = passedLiveName == null || passedLiveName.trim().isEmpty() ? name : passedLiveName;
+        catchupMode = getIntent().getBooleanExtra(EXTRA_START_CATCHUP, false);
+        replayProgrammeStartMs = getIntent().getLongExtra(EXTRA_REPLAY_START_MS, -1L);
+        replayProgrammeEndMs = getIntent().getLongExtra(EXTRA_REPLAY_END_MS, -1L);
         liveUrl = getIntent().getStringExtra(EXTRA_LIVE_URL);
         if (liveUrl == null || liveUrl.isEmpty()) liveUrl = url;
         epgUrl = value(EXTRA_EPG_URL); epgTvgId = value(EXTRA_TVG_ID); epgExtInf = value(EXTRA_EXTINF);
@@ -215,6 +222,13 @@ public final class PlayerActivity extends Activity {
         findViewById(R.id.btnDrm).setOnClickListener(v -> configureDrm()); findViewById(R.id.btnResize).setOnClickListener(v -> chooseResizeMode());
         findViewById(R.id.btnLiveServer).setOnClickListener(v -> showLiveServerPicker());
         updateLiveServerButton();
+        if(catchupMode){
+            String replayTitle=value(EXTRA_REPLAY_TITLE);
+            if(replayTitle.isEmpty())replayTitle=name;
+            ((TextView)findViewById(R.id.txtPlayerTitle)).setText("DVR · "+replayTitle);
+            ((Button)findViewById(R.id.btnEpg)).setText("DVR · Lịch");
+            epgPanel.post(()->showPlayerEpg(0));
+        }
         findViewById(R.id.btnRetry).setOnClickListener(v -> { position = 0; resumePlayback = true; releasePlayer(); startPlayer(); }); setupMobileEdgeGestures(); loadQuickChannels();
     }
     @Override protected void onStart() { super.onStart(); activityStarted = true; boolean youtubeTab = SharedPlaybackSession.TAB_YOUTUBE.equals(SharedPlaybackSession.tab(this)); keepPlayerForTabSwitch = isYoutubeHandoffPending() || youtubeTab; if(!youtubeTab) stopService(new android.content.Intent(this,BackgroundPlaybackService.class)); backgroundPlaybackActive=false; fpsHandler.post(fpsUpdate); clockHandler.post(clockUpdate); if(!keepPlayerForTabSwitch) startPlayer(); }
