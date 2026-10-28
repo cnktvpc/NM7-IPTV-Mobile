@@ -61,12 +61,19 @@ public final class PlayerActivity extends Activity {
     public static final String EXTRA_USER_AGENT = "user_agent", EXTRA_REFERER = "referer", EXTRA_ORIGIN = "origin";
     public static final String EXTRA_HEADERS = "headers", EXTRA_MIME = "mime", EXTRA_OPTIONS = "options";
     public static final String EXTRA_LIVE_EVENT = "live_event_json";
+    public static final String EXTRA_EPG_URL = "epg_url";
+    public static final String EXTRA_TVG_ID = "tvg_id";
+    public static final String EXTRA_EXTINF = "original_extinf";
+    public static final String EXTRA_LIVE_URL = "original_live_url";
     private LiveEvent liveEvent;
     private ExoPlayer player;
     private PlayerView playerView;
     private TextView status;
     private TextView fpsView;
     private String url, name, mime;
+    private String liveUrl = "", epgUrl = "", epgTvgId = "", epgExtInf = "";
+    private String liveName = "";
+    private boolean catchupMode;
     private String drmSystem = "", drmLicense = "";
     private ArrayList<String> options = new ArrayList<>();
     private Bundle currentHeaders = new Bundle();
@@ -137,6 +144,10 @@ public final class PlayerActivity extends Activity {
         setContentView(R.layout.activity_player);
         Insets.apply(findViewById(R.id.playerRoot));
         url = value(EXTRA_URL); name = value(EXTRA_NAME); mime = value(EXTRA_MIME);
+        liveName = name;
+        liveUrl = getIntent().getStringExtra(EXTRA_LIVE_URL);
+        if (liveUrl == null || liveUrl.isEmpty()) liveUrl = url;
+        epgUrl = value(EXTRA_EPG_URL); epgTvgId = value(EXTRA_TVG_ID); epgExtInf = value(EXTRA_EXTINF);
         if (url.isEmpty()) {
             SharedPlaybackSession.State saved = SharedPlaybackSession.loadIptv(this);
             if (saved != null) {
@@ -176,7 +187,7 @@ public final class PlayerActivity extends Activity {
         playerView.setResizeMode(resizeMode); ((TextView) findViewById(R.id.txtPlayerTitle)).setText(name);
         TextView source = findViewById(R.id.txtPlayerUrl); source.setText(url); source.setVisibility(AppPreferences.showPlayerSource(this) ? View.VISIBLE : View.GONE); source.setOnClickListener(v -> showSource());
         playerView.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) visibility -> findViewById(R.id.playerHeader).setVisibility(visibility));
-        findViewById(R.id.btnBack).setOnClickListener(v -> finish()); findViewById(R.id.btnQuality).setOnClickListener(v -> chooseQuality());
+        findViewById(R.id.btnBack).setOnClickListener(v -> { if (catchupMode) returnToLive(); else finish(); }); findViewById(R.id.btnEpg).setOnClickListener(v -> showPlayerEpg(0)); findViewById(R.id.btnQuality).setOnClickListener(v -> chooseQuality());
         findViewById(R.id.btnFormat).setOnClickListener(v -> chooseFormat()); View rotateButton = findViewById(R.id.btnRotate); if (rotateButton != null) rotateButton.setOnClickListener(v -> chooseOrientation());
         findViewById(R.id.btnDrm).setOnClickListener(v -> configureDrm()); findViewById(R.id.btnResize).setOnClickListener(v -> chooseResizeMode());
         findViewById(R.id.btnLiveServer).setOnClickListener(v -> showLiveServerPicker());
@@ -187,6 +198,86 @@ public final class PlayerActivity extends Activity {
     @Override protected void onResume(){super.onResume();if(player!=null){player.setWakeMode(C.WAKE_MODE_NONE);if(playerView!=null&&playerView.getPlayer()!=player)playerView.setPlayer(player);}}
     @Override protected void onPause(){if(!keepPlayerForTabSwitch&&!isYoutubeHandoffPending()&&!MobileNm7Application.isTabSwitchPending()&&shouldUseBackgroundPlayback()&&!isFinishing()&&player!=null){backgroundPlaybackActive=true;player.setWakeMode(C.WAKE_MODE_NETWORK);android.content.Intent service=new android.content.Intent(this,BackgroundPlaybackService.class).putExtra(BackgroundPlaybackService.EXTRA_CHANNEL_NAME,name);if(android.os.Build.VERSION.SDK_INT>=26)startForegroundService(service);else startService(service);}super.onPause();}
     private boolean shouldUseBackgroundPlayback(){return !AppPreferences.isTvInterface(this)&&AppPreferences.backgroundPlayback(this);}
+
+    private Channel epgChannel(){
+        Map<String,String> headers=new LinkedHashMap<>();
+        for(String key:currentHeaders.keySet()){String value=currentHeaders.getString(key);if(value!=null)headers.put(key,value);}
+        Channel channel=new Channel(liveName, "", liveUrl, "", epgTvgId, headers);
+        channel.setOriginalExtInf(epgExtInf);
+        channel.options().addAll(options);
+        return channel;
+    }
+
+    private void showPlayerEpg(int dayOffset){
+        if(epgUrl==null||epgUrl.isEmpty()){new AlertDialog.Builder(this).setTitle("Lịch phát sóng").setMessage("Chưa có URL EPG. Hãy cấu hình lịch trong Tùy chọn IPTV.").setPositiveButton("Đóng",null).show();return;}
+        new Thread(()->{
+            try{
+                HttpURLConnection connection=(HttpURLConnection)new URL(epgUrl).openConnection();
+                connection.setConnectTimeout(12000);connection.setReadTimeout(25000);
+                connection.setRequestProperty("User-Agent","Nm7-IPTV/1.10.146 Android");
+                connection.setRequestProperty("Accept-Encoding","gzip");
+                try{
+                    int code=connection.getResponseCode();
+                    if(code<200||code>=300)throw new Exception("HTTP "+code);
+                    try(InputStream raw=new BufferedInputStream(connection.getInputStream());
+                        InputStream input=EpgStore.isGzip(epgUrl,connection)?new GZIPInputStream(raw):raw){
+                        EpgScheduleStore.Schedule schedule=EpgScheduleStore.parse(input);
+                        runOnUiThread(()->showPlayerEpgDialog(schedule,dayOffset));
+                    }
+                }finally{connection.disconnect();}
+            }catch(Exception error){runOnUiThread(()->new AlertDialog.Builder(this).setTitle("Lịch phát sóng").setMessage("Không tải được EPG: "+error.getMessage()).setPositiveButton("Đóng",null).show());}
+        },"nm7-player-epg").start();
+    }
+
+    private void showPlayerEpgDialog(EpgScheduleStore.Schedule schedule,int dayOffset){
+        java.util.Calendar day=java.util.Calendar.getInstance();
+        day.add(java.util.Calendar.DAY_OF_YEAR,dayOffset);
+        day.set(java.util.Calendar.HOUR_OF_DAY,0);day.set(java.util.Calendar.MINUTE,0);day.set(java.util.Calendar.SECOND,0);day.set(java.util.Calendar.MILLISECOND,0);
+        long dayStart=day.getTimeInMillis(),now=System.currentTimeMillis();
+        List<EpgProgram> programmes=schedule.forChannel(epgChannel(),dayStart);
+        String date=new java.text.SimpleDateFormat("EEE dd/MM/yyyy",Locale.getDefault()).format(new Date(dayStart));
+        if(programmes.isEmpty()){
+            new AlertDialog.Builder(this).setTitle("LỊCH PHÁT SÓNG · "+date)
+                .setMessage("Không tìm thấy lịch cho kênh "+liveName+". Kiểm tra tvg-id và URL EPG.")
+                .setNeutralButton("Ngày trước",(d,w)->showPlayerEpg(dayOffset-1))
+                .setPositiveButton("Ngày sau",(d,w)->showPlayerEpg(dayOffset+1)).setNegativeButton("Đóng",null).show();return;
+        }
+        String[] labels=new String[programmes.size()];
+        for(int i=0;i<programmes.size();i++){
+            EpgProgram p=programmes.get(i);
+            String state=p.isCurrent(now)?"  ● ĐANG PHÁT":p.isFuture(now)?"  • Sắp phát":CatchupUrlBuilder.canReplay(epgChannel(),p,now)?"  ◀ Xem lại":"";
+            labels[i]=new java.text.SimpleDateFormat("HH:mm",Locale.getDefault()).format(new Date(p.startMs))+"–"+
+                new java.text.SimpleDateFormat("HH:mm",Locale.getDefault()).format(new Date(p.endMs))+"  "+p.title+state;
+        }
+        new AlertDialog.Builder(this).setTitle("LỊCH PHÁT SÓNG · "+date)
+            .setItems(labels,(d,which)->{
+                if(which<0||which>=programmes.size())return;
+                EpgProgram selected=programmes.get(which);long at=System.currentTimeMillis();
+                if(selected.isCurrent(at)){returnToLive();return;}
+                if(selected.isFuture(at)){new AlertDialog.Builder(this).setMessage("Chương trình chưa phát sóng.").setPositiveButton("Đóng",null).show();return;}
+                Channel source=epgChannel();
+                if(!CatchupUrlBuilder.canReplay(source,selected,at)){
+                    new AlertDialog.Builder(this).setTitle(selected.title).setMessage("Kênh không có Catch-up hợp lệ hoặc chương trình đã quá hạn lưu trữ.").setPositiveButton("Đóng",null).show();return;
+                }
+                try{
+                    url=CatchupUrlBuilder.build(source,selected,at);position=0;resumePlayback=true;catchupMode=true;
+                    ((TextView)findViewById(R.id.txtPlayerTitle)).setText("DVR · "+selected.title);
+                    ((Button)findViewById(R.id.btnEpg)).setText("DVR · Lịch");
+                    TextView sourceText=findViewById(R.id.txtPlayerUrl);sourceText.setText(url);
+                    releasePlayer();startPlayer();
+                }catch(Exception error){new AlertDialog.Builder(this).setTitle("Không thể xem lại").setMessage(error.getMessage()).setPositiveButton("Đóng",null).show();}
+            }).setNeutralButton("Ngày trước",(d,w)->showPlayerEpg(dayOffset-1))
+            .setPositiveButton("Ngày sau",(d,w)->showPlayerEpg(dayOffset+1)).setNegativeButton("Đóng",null).show();
+    }
+
+    private void returnToLive(){
+        if(!catchupMode)return;
+        catchupMode=false;url=liveUrl;position=0;resumePlayback=true;
+        ((TextView)findViewById(R.id.txtPlayerTitle)).setText(liveName);
+        ((Button)findViewById(R.id.btnEpg)).setText("Lịch");
+        TextView sourceText=findViewById(R.id.txtPlayerUrl);sourceText.setText(url);
+        releasePlayer();startPlayer();
+    }
     private boolean playbackContextActive(){return activityStarted||backgroundPlaybackActive;}
     private static DefaultLoadControl stableLoadControl(){return new DefaultLoadControl.Builder().setBufferDurationsMs(2_500,10_000,400,1_200).setBackBuffer(0,false).setPrioritizeTimeOverSizeThresholds(true).build();}
     private void startPlayer() {
