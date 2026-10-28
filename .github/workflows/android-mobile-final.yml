@@ -245,7 +245,7 @@ jobs:
             :app:assembleMobileDebug
           mkdir -p dist/mobile
           cp app/build/outputs/apk/mobile/debug/*.apk dist/mobile/
-          cd dist/mobile && sha256sum *.apk > SHA256SUMS.txt
+          cd dist/mobile && sha256sum ./*.apk > SHA256SUMS.txt
 
       - name: Upload Mobile APK
         uses: actions/upload-artifact@v4
