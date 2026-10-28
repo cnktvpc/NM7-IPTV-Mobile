@@ -49,6 +49,8 @@ jobs:
       - name: Restore pinned SmartTube phone source
         run: |
           set -euxo pipefail
+          rm -rf third_party/SmartTube-droid
+          mkdir -p third_party
           git clone --no-checkout https://github.com/systematiq-one/SmartTube-droid.git third_party/SmartTube-droid
           git -C third_party/SmartTube-droid checkout --detach 4825d6aa8b6f1d3181927f9e96c7d89cab13d510
           git -C third_party/SmartTube-droid submodule update --init --recursive
