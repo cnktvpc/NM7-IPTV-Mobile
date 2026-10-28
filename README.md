@@ -10,13 +10,13 @@
 - Added `EpgProgram` to model a full programme interval and classify past/current/future states.
 - Added `EpgScheduleStore` to parse XMLTV programme history, sort schedules, filter by selected day and resolve channel IDs/names.
 - Added `CatchupUrlBuilder` to read `catchup`, `catchup-source` / `catchup-url`, and `catchup-days` from the channel's original EXTINF metadata. It supports full-URL/default and query-append modes, start/end/duration placeholders, validates the archive window, and never overwrites the live channel URL.
-- Added a channel action **Lịch phát sóng / Xem lại**. It loads the selected EPG on an I/O executor, shows programmes for the selected day, labels current/future/past entries, provides previous/next-day navigation, and starts archive playback only when the channel metadata supports Catch-up.
+- Added **Lịch** in the player header plus **Lịch phát sóng / Xem lại** in the channel action menu. The player entry loads XMLTV off the UI thread, shows day-based programme rows, and switches the current player to a replay URL without creating a second player Activity. The player button changes to **DVR · Lịch** during replay; Back restores the original live URL.
 - Added unit tests for metadata parsing, URL building, append mode, expiry and future programmes.
 - Existing player, LIVE feed, YouTube MiniPlayer and stable branch are not intentionally modified outside this candidate.
 
 ## Known limitations before calling this complete
 
-- The initial schedule entry point is from the channel action menu; matching the exact Super OK in-player bottom overlay and DVR status/progress treatment remains to be validated/implemented.
+- The current UI uses an in-player dialog/list, not yet Super OK's exact persistent lower overlay. DVR state is shown on the EPG button, but a dedicated archive progress bar / remaining-time presentation still needs device validation.
 - Provider-specific placeholders vary. The builder must be tested against the actual NM7 playlist sources; do not assume every provider accepts the same timestamp format.
 - XMLTV ID/name fallback cannot guarantee correct matching where provider identifiers are ambiguous.
 - CI build, unit tests, and device verification have not yet been confirmed in this note.
