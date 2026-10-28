@@ -8,6 +8,11 @@
 - Candidate: **1.10.146 / versionCode 163**.
 - Stable was not modified. PR #1 is a draft; do not merge until CI and real-device checks pass.
 
+## User feedback / discoverability fix in progress
+
+- User reported the new EPG feature was not visible. The previous candidate hid the entry behind channel long-press and the player header's transient controls; this was not discoverable enough.
+- Added a visible `EPG` button directly to every channel row, wired to the same channel schedule/catch-up flow. The existing long-press menu and in-player `Lịch` entry remain. Build this commit and send a replacement APK; do not ask the user to keep looking for the buried menu.
+
 ## Implemented
 
 - `EpgProgram.java`: programme interval model with past/current/future classification.
@@ -19,7 +24,7 @@
 - `.github/workflows/android-mobile-final.yml`: feature branch push trigger, candidate version check (1.10.146 / 163), Catch-up tests before assemble, and APK export naming.
 - README's candidate summary updated; historical release notes remain.
 
-## Build status — CI verified
+## Previous build status — CI verified; superseded by visible-entry fix
 
 - Push build: [Actions run #40639183001](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40639183001), commit `04291b79d0f480b06dd574367f4c785ad7c41590`, **success**.
 - Pull-request validation: [Actions run #40639187227](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40639187227), same commit, **success**.

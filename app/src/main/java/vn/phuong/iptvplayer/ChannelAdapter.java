@@ -37,6 +37,7 @@ public final class ChannelAdapter extends BaseAdapter {
     interface Listener {
         void onSelectionChanged();
         void onFavoriteChanged(Channel channel, boolean favorite);
+        void onEpgRequested(Channel channel);
     }
 
     private static final int MAX_LOGO_BYTES = 2 * 1024 * 1024;
@@ -160,6 +161,8 @@ public final class ChannelAdapter extends BaseAdapter {
                 : c.name().substring(0, 1).toUpperCase(java.util.Locale.ROOT));
 
         h.favorite.setText(AppPreferences.isFavorite(context, c) ? "★" : "☆");
+        h.epgButton.setOnClickListener(v -> listener.onEpgRequested(c));
+
         h.favorite.setOnClickListener(v -> {
             boolean favorite = AppPreferences.toggleFavorite(context, c);
             h.favorite.setText(favorite ? "★" : "☆");
@@ -573,7 +576,7 @@ public final class ChannelAdapter extends BaseAdapter {
     }
 
     private static final class Holder {
-        final TextView name, group, url, badge, favorite, programme, epgStart, epgEnd;
+        final TextView name, group, url, badge, favorite, epgButton, programme, epgStart, epgEnd;
         final ImageView logo;
         final View epg;
         final ProgressBar epgProgress;
@@ -584,6 +587,7 @@ public final class ChannelAdapter extends BaseAdapter {
             url = v.findViewById(R.id.txtUrl);
             badge = v.findViewById(R.id.txtChannelBadge);
             favorite = v.findViewById(R.id.btnFavorite);
+            epgButton = v.findViewById(R.id.btnChannelEpg);
             logo = v.findViewById(R.id.imgChannelLogo);
             epg = v.findViewById(R.id.epgSection);
             programme = v.findViewById(R.id.txtProgramme);

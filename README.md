@@ -3,18 +3,18 @@
 > **Development branch:** `feature/epg-catchup-superok-20261028`  
 > **Baseline:** accepted Mobile 1.10.145 / versionCode 162.  
 > **Candidate:** 1.10.146 / versionCode 163.  
-> **CI status:** **SUCCESS** — [push build #40639183001](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40639183001) and [PR validation #40639187227](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40639187227). Unit tests, APK assembly, artifact upload and temporary-branch export passed. The stable branch has not been changed; PR #1 remains a draft pending device/provider validation.
+> **Previous candidate CI:** passed on commit `04291b79`; a follow-up UX fix is now being built to make the EPG entry visible directly on each channel row. Do not install the previous candidate expecting the new row button. Stable remains unchanged; PR #1 is a draft.
 
 ## Implemented in this candidate
 
 - XMLTV schedule model/parser with programme intervals, day navigation, channel-ID matching, and `display-name` aliases.
-- Persistent translucent lower EPG panel in the existing player, with horizontal programme cards, times, titles, state labels and current-programme progress.
+- A visible **EPG** button on every channel row opens the channel's schedule directly; long-press actions remain available as an alternate entry. The player also has a **Lịch** button and a translucent lower EPG panel with horizontal programme cards, times, titles, state labels and current-programme progress.
 - Playback state is separate from wall-clock schedule state: the live programme remains **ĐANG PHÁT** according to the real time, while the chosen archive programme changes to **ĐANG XEM LẠI**.
 - Catch-up URL builder reads `catchup`, `catchup-source` / `catchup-url`, and `catchup-days` from original EXTINF metadata; supports full URL/default and append modes plus common start/end/duration and UTC/local placeholders. Placeholder expansion is longest-first to prevent partial replacements.
 - The panel remains open when replay starts. The player changes to **DVR · Lịch** and can restore the original live URL/name. Replay launched from the channel action menu carries the original live URL/name, selected programme interval and title, starts in DVR state and opens the EPG panel.
 - Added Catch-up unit tests, including quoted metadata, default URL construction, append mode, expiry/future rejection, and overlapping-placeholder regression coverage.
 
-## Verified artifact
+## Previous verified artifact (superseded by visible-entry fix)
 
 - **GitHub Actions run:** [#40639183001](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40639183001), commit `04291b79d0f480b06dd574367f4c785ad7c41590`.
 - **Artifact:** `NM7-IPTV-Mobile-FINAL`, ID `12794439441`; uploaded by the successful run.

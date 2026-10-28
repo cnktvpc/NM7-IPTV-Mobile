@@ -154,7 +154,7 @@ public final class MainActivity extends Activity {
         inputUrl=findViewById(R.id.inputUrl); inputSearch=findViewById(R.id.inputSearch); groupRow=findViewById(R.id.groupRow);
         txtEmpty=findViewById(R.id.txtEmpty); progress=findViewById(R.id.progress);
         channelList=findViewById(R.id.listChannels);
-        adapter=new ChannelAdapter(this,new ChannelAdapter.Listener(){@Override public void onSelectionChanged(){updateSummary();}@Override public void onFavoriteChanged(Channel c,boolean f){toast(f?"Đã thêm vào Yêu thích":"Đã bỏ khỏi Yêu thích");if(activeSection==1)filter();else adapter.notifyDataSetChanged();}});
+        adapter=new ChannelAdapter(this,new ChannelAdapter.Listener(){@Override public void onSelectionChanged(){updateSummary();}@Override public void onFavoriteChanged(Channel c,boolean f){toast(f?"Đã thêm vào Yêu thích":"Đã bỏ khỏi Yêu thích");if(activeSection==1)filter();else adapter.notifyDataSetChanged();}@Override public void onEpgRequested(Channel c){showEpgSchedule(c,0);}});
         liveAdapter=new LiveEventAdapter(this,adapter,new LiveEventAdapter.Listener(){
             @Override public void onEventRequested(LiveEvent event){playLiveEvent(event);}
             @Override public void onEventLongPressed(LiveEvent event){showLiveEventActions(event);}
