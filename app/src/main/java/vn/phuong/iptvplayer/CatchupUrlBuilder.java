@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 
 /** Builds archive URLs from M3U EXTINF metadata without mutating the live URL. */
 final class CatchupUrlBuilder {
-    private static final Pattern ATTR = Pattern.compile("([\\\\w-]+)\\\\s*=\\\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\\\s,]+))");
+    private static final Pattern ATTR = Pattern.compile("([\\w-]+)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s,]+))");
     private static final TimeZone VN = TimeZone.getTimeZone("Asia/Ho_Chi_Minh");
 
     static final class Config {
@@ -79,7 +79,6 @@ final class CatchupUrlBuilder {
         replacements.put("${start}", Long.toString(start));
         replacements.put("${end}", Long.toString(end));
         replacements.put("${duration}", Long.toString(duration));
-        replacements.put("${YYYYMMDDHHMMSS}", localStart);
         replacements.put("${YYYYMMDDHHMMSS}", localStart);
         replacements.put("${UTC}", Long.toString(start));
         replacements.put("${LUTC}", Long.toString(end));
