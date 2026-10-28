@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -53,6 +54,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.zip.GZIPInputStream;
 
 @UnstableApi
 public final class PlayerActivity extends Activity {
