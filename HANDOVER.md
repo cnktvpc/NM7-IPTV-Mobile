@@ -1,76 +1,38 @@
-# HANDOVER — NM7 IPTV Mobile — 1.10.113 — 2026-10-08
+# HANDOVER — NM7 IPTV Mobile EPG / Catch-up candidate
 
-## Current
-- Stable: **1.10.112 / 128** on `stable/mobile-1.10.112`.
-- Baseline commit: `6aea2d995280017c1e7c00310bcca0c9937b50bb`.
-- Candidate: **1.10.113 / 129**.
-- Candidate branch: `work/mobile-app-settings-bottom-v113`.
-- HEAD: `1a5ee858ee0bd9a4a44707f9c0f9b3fa81e5a764`.
-- Runtime/device test: **NOT YET CONFIRMED**.
+## Current task
 
-## Changes
-### IPTV
-- Removed visible row: **Tất cả | Yêu thích | Tải lại | Gần đây**.
-- `Tải lại` moved beside `Bỏ lọc`.
-- `Tùy chọn IPTV` keeps `Tất cả kênh`, `Yêu thích`, `Gần đây`.
-- Hidden section button anchors remain for compatibility with existing MainActivity logic.
+Implement the Super OK-style EPG programme schedule and replay workflow for NM7 IPTV Mobile.
 
-### App settings / bottom nav
-- Bottom bar: **YouTube | IPTV | Tùy chọn ứng dụng**.
-- App settings reuse `MainActivity.showSettings()`; no duplicate settings implementation.
+- Branch: `feature/epg-catchup-superok-20261028`
+- Baseline: `main`, whose README records the accepted stable 1.10.145 / versionCode 162 baseline.
+- Candidate version: **1.10.146 / versionCode 163**.
+- Stable branch has not been modified.
+- Do not merge until CI and device tests pass.
 
-### YouTube header
-- Generate-time source: `scripts/mobile-ui/res/layout/browse_activity.xml`.
-- Light header with NM7 + search + microphone + account.
-- IDs: `nm7_search`, `nm7_voice`, `nm7_account`.
+## Changes currently committed
 
-## Versioning
-- 1.10.113 / 129 already built.
-- Next new build must not reuse 129; use **1.10.114 / 130** or higher.
+- `EpgProgram.java`: programme model with start/end epoch milliseconds and past/current/future checks.
+- `EpgScheduleStore.java`: parses full XMLTV programme intervals and supports per-day schedules.
+- `CatchupUrlBuilder.java`: reads Catch-up attributes from `Channel.originalExtInf()`; supports `default` full URL and `append` query modes, start/end/duration and common UTC/local placeholders, and `catchup-days` expiry checks.
+- `MainActivity.java`: channel action menu now offers **Lịch phát sóng / Xem lại**. It downloads/parses the XMLTV schedule off the UI thread, lists programmes for a day, marks current/future/replayable past entries, navigates previous/next day and starts an archive URL via the existing player when the channel metadata supports replay.
+- `CatchupUrlBuilderTest.java`: tests metadata parsing, URL building, append mode, expired programmes and future-programme rejection.
+- `app/build.gradle.kts`: version bumped to 1.10.146 / 163.
+- README updated with implementation status and validation gates.
 
-## CI
-- Workflow: `.github/workflows/nm7-mobile-113-ui-refinement.yml`.
-- Run: `37655352745` SUCCESS.
-- Artifact: `11498119053`.
-- APK SHA-256: `72537004c936a9a358712b28261c9709153252561b57b7952e5fe3131f42019b`.
-- Artifact digest: `885fccf5dd8e3004ec6962d7d2c2416bebe354452b3c7c3621f1e470e699c75c6`.
-- [Actions](https://github.com/phuongnm7/iptv-player-android/actions/runs/37655352745)
-- [Artifact](https://github.com/phuongnm7/iptv-player-android/actions/runs/37655352745/artifacts/11498119053)
+## Important technical notes
 
-## Build chain
-1. Checkout candidate branch.
-2. Clone pinned SmartTube `4825d6aa8b6f1d3181927f9e96c7d89cab13d510`.
-3. Apply SmartTube compatibility patches.
-4. Run `scripts/patch-mobile-v37.py` and `scripts/patch-mobile-v106.py`.
-5. Verify version 1.10.113 / 129.
-6. Run lifecycle guards and parser test.
-7. Run `:app:assembleMobileDebug`.
-8. Upload artifact.
+- Channel's original live URL is not mutated. Replay uses a temporary Channel object and the existing PlayerActivity.
+- Current EPG display in the existing channel list is a separate snapshot from the new full programme schedule.
+- Catch-up is provider-dependent. A working XMLTV feed does not imply a channel has an archive.
+- The first UI entry point is the channel action menu. It does **not yet reproduce** Super OK's exact in-player lower overlay, DVR badge and persistent EPG panel while replaying. This is a known follow-up, not something to claim finished.
+- Verify `CatchupUrlBuilder` placeholder syntax against real M3U EXTINF examples; do not leak signed URLs or tokens into logs.
 
-## Important files
-- `app/src/main/java/vn/phuong/iptvplayer/MainActivity.java`
-- `app/src/main/java/vn/phuong/iptvplayer/MobileIptvUi.java`
-- `app/src/main/java/vn/phuong/iptvplayer/HomeTabBar.java`
-- `app/src/main/res/layout/activity_main.xml`
-- `app/build.gradle.kts`
-- `scripts/mobile-ui/res/layout/browse_activity.xml`
-- `scripts/patch-mobile-ui.py`
+## Next steps
 
-## Do not change casually
-- Do not alter `stable/mobile-1.10.112` before 1.10.113 runtime acceptance.
-- Do not use `main` as implicit baseline.
-- Do not remove section anchors before refactoring MainActivity.
-- Do not edit only generated `third_party/SmartTube-droid`; CI regenerates it.
-- Do not treat CI PASS as runtime PASS.
-
-## Device acceptance checklist
-- IPTV old four-button row absent.
-- Bỏ lọc + Tải lại aligned.
-- Tùy chọn IPTV switches All/Favorites/Recent.
-- Bottom bar settings works.
-- Full application settings dialog works.
-- YouTube header visual and interactions work.
-- YouTube avatar/status bar/spinner/live chat/background/mini/back remain OK.
-
-## Next developer
-Start from `work/mobile-app-settings-bottom-v113` @ `1a5ee858ee0bd9a4a44707f9c0f9b3fa81e5a764`. Read `README.md` → `PROGRESS.md` → `HANDOVER.md` before making changes.
+1. Inspect CI triggered by this branch. Fix all Java compile, lint, unit-test and generated-source failures.
+2. Test the URL builder against real Catch-up metadata from a source the user is authorized to access.
+3. Validate XMLTV matching and timezone handling.
+4. Implement the in-player EPG overlay and explicit LIVE/DVR state while preserving the current player session.
+5. Test replay -> back to live, channel switch, player rotation/recreation, YouTube MiniPlayer and Live feed regression.
+6. Update this file and README with actual workflow run, artifact, checksums and known failures. Never mark runtime PASS without device confirmation.
