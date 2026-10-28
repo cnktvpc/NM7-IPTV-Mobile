@@ -37,14 +37,13 @@ jobs:
           rm -rf /tmp/nm7-marker
           git clone --depth 1 --branch main "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /tmp/nm7-marker
           cd /tmp/nm7-marker
-          git checkout --orphan "ci/start-1.10.112-${GITHUB_SHA:0:7}"
+          git checkout --orphan "ci/start-1.10.146-${GITHUB_SHA:0:7}"
           git rm -rf . >/dev/null 2>&1 || true
-          printf 'workflow started for %s
-' "${GITHUB_SHA}" > CI-START.txt
+          printf 'workflow started for %s\n' "${GITHUB_SHA}" > CI-START.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add CI-START.txt
-          git commit -m "ci: start 1.10.112 validation"
+          git commit -m "ci: start 1.10.146 validation"
           git push origin HEAD
 
       - name: Restore pinned SmartTube phone source
