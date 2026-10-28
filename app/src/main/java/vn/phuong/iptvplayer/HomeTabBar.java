@@ -15,6 +15,11 @@ import android.widget.TextView;
 
 /** Single Mobile navigation bar, overlaid at the bottom of NM7, player, and SmartTube Browse. */
 public final class HomeTabBar {
+    public static final int TAB_YOUTUBE = 0;
+    public static final int TAB_IPTV = 1;
+    public static final int TAB_SCHEDULE = 2;
+    public static final int TAB_SETTINGS = 3;
+
     private static final int TAG_KEY = R.id.mainRoot;
     private static final String BAR_TAG = "nm7_home_tab_bar";
     private static final int BG = Color.rgb(23, 23, 28);
@@ -39,18 +44,30 @@ public final class HomeTabBar {
         bar.setElevation(dp(activity, 8));
         bar.setPadding(0, dp(activity, 4), 0, dp(activity, 4));
 
-        addItem(activity, bar, R.drawable.nm7_nav_youtube, youtubeSelected, "YouTube", () -> {
+        addItem(activity, bar, TAB_YOUTUBE, R.drawable.nm7_nav_youtube, youtubeSelected, "YouTube", () -> {
             if (!youtubeSelected) openBrowse(activity);
         });
 
-        addItem(activity, bar, R.drawable.nm7_nav_iptv, !youtubeSelected, "IPTV", () -> {
-            if (youtubeSelected) openIptv(activity);
+        addItem(activity, bar, TAB_IPTV, R.drawable.nm7_nav_iptv, !youtubeSelected, "Kênh TV", () -> {
+            if (youtubeSelected) {
+                openIptv(activity);
+            } else if (activity instanceof MainActivity) {
+                ((MainActivity) activity).showChannelListTab();
+            }
+        });
+
+        addItem(activity, bar, TAB_SCHEDULE, R.drawable.nm7_nav_schedule, false, "Lịch phát sóng", () -> {
+            if (activity instanceof MainActivity) {
+                ((MainActivity) activity).showScheduleTab();
+            } else {
+                openIptvWithSchedule(activity);
+            }
         });
 
         // Application settings is a top-level destination of the same bottom bar.
         // It reuses MainActivity's existing dialog so every existing setting and behavior
         // stays identical to the 1.10.112 implementation.
-        addItem(activity, bar, R.drawable.nm7_nav_settings, false, "Tùy chọn",
+        addItem(activity, bar, TAB_SETTINGS, R.drawable.nm7_nav_settings, false, "Tùy chọn",
                 () -> openAppSettings(activity));
 
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
@@ -72,6 +89,49 @@ public final class HomeTabBar {
                 list.setClipToPadding(false);
                 list.setPadding(list.getPaddingLeft(), list.getPaddingTop(),
                         list.getPaddingRight(), list.getPaddingBottom() + dp(activity, 76));
+            }
+
+            View scheduleList = activity.findViewById(R.id.listSchedule);
+            if (scheduleList instanceof android.widget.ListView) {
+                android.widget.ListView list = (android.widget.ListView) scheduleList;
+                list.setClipToPadding(false);
+                list.setPadding(list.getPaddingLeft(), list.getPaddingTop(),
+                        list.getPaddingRight(), list.getPaddingBottom() + dp(activity, 76));
+            }
+        }
+    }
+
+    public static void setSelectedTab(Activity activity, int selectedTab) {
+        View content = activity.findViewById(android.R.id.content);
+        if (!(content instanceof ViewGroup)) return;
+        ViewGroup group = (ViewGroup) content;
+        LinearLayout bar = null;
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View child = group.getChildAt(i);
+            if (BAR_TAG.equals(child.getTag()) && child instanceof LinearLayout) {
+                bar = (LinearLayout) child;
+                break;
+            }
+        }
+        if (bar == null) return;
+        boolean light = activity.getClass().getName().equals(BROWSE);
+        for (int i = 0; i < bar.getChildCount(); i++) {
+            View item = bar.getChildAt(i);
+            Object tag = item.getTag();
+            if (tag instanceof Integer) {
+                int tabId = (Integer) tag;
+                boolean isSel = (tabId == selectedTab);
+                if (item instanceof ViewGroup) {
+                    ViewGroup itemGroup = (ViewGroup) item;
+                    for (int j = 0; j < itemGroup.getChildCount(); j++) {
+                        View sub = itemGroup.getChildAt(j);
+                        if (sub instanceof ImageView) {
+                            ((ImageView) sub).setColorFilter(light ? (isSel ? Color.BLACK : 0xff606060) : (isSel ? SELECTED : UNSELECTED));
+                        } else if (sub instanceof TextView) {
+                            ((TextView) sub).setTextColor(light ? (isSel ? Color.BLACK : 0xff606060) : (isSel ? Color.WHITE : UNSELECTED));
+                        }
+                    }
+                }
             }
         }
     }
@@ -119,6 +179,29 @@ public final class HomeTabBar {
             }
         }
         Intent intent = new Intent(activity, MainActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        startWithoutAnimation(activity, intent);
+        if (hasIptvPlayback) {
+            MobileInlinePlayerProviderV2.resumeForIptvTab(activity);
+        }
+    }
+
+    private static void openIptvWithSchedule(Activity activity) {
+        SharedPlaybackSession.setTab(activity, SharedPlaybackSession.TAB_IPTV);
+        MobileNm7Application.markTabSwitch();
+        boolean hasIptvPlayback = MobileInlinePlayerProviderV2.isIptvPlaybackActive()
+                || MobileNm7Application.hasIptvPlayer();
+        if (hasIptvPlayback) {
+            if (MobileNm7Application.isYoutubeSessionActive()) {
+                MobileNm7Application.suspendYoutubeForIptv();
+            }
+        } else {
+            if (MobileNm7Application.isYoutubeSessionActive()) {
+                MobileNm7Application.enterYoutubeMiniPlayer();
+            }
+        }
+        Intent intent = new Intent(activity, MainActivity.class);
+        intent.putExtra("OPEN_SCHEDULE_TAB", true);
         intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
         startWithoutAnimation(activity, intent);
         if (hasIptvPlayback) {
@@ -203,9 +286,10 @@ public final class HomeTabBar {
         }
     }
 
-    private static void addItem(Activity activity, LinearLayout bar, int iconRes, boolean selected,
+    private static void addItem(Activity activity, LinearLayout bar, int tabId, int iconRes, boolean selected,
                                  String title, Runnable action) {
         LinearLayout item = new LinearLayout(activity);
+        item.setTag(tabId);
         item.setGravity(Gravity.CENTER);
         item.setOrientation(LinearLayout.VERTICAL);
         item.setClickable(true);
@@ -217,17 +301,17 @@ public final class HomeTabBar {
         boolean light = activity.getClass().getName().equals(BROWSE);
         icon.setColorFilter(light ? (selected ? Color.BLACK : 0xff606060) : (selected ? SELECTED : UNSELECTED));
         icon.setContentDescription(null);
-        int size = dp(activity, 30);
+        int size = dp(activity, 26);
         item.addView(icon, new LinearLayout.LayoutParams(size, size));
 
         TextView label = new TextView(activity);
         label.setText(title);
         item.setContentDescription(title);
-        label.setTextSize(11);
+        label.setTextSize(10);
         label.setGravity(Gravity.CENTER);
-        label.setTextColor(light ? (selected ? Color.BLACK : 0xff606060) : (selected ? Color.WHITE : UNSELECTED));
+        label.setTextColor(light ? (selected ? Color.BLACK : 0xff606060) : (selected ? SELECTED : UNSELECTED));
         label.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
-        item.addView(label, new LinearLayout.LayoutParams(-2, dp(activity, 18)));
+        item.addView(label, new LinearLayout.LayoutParams(-2, dp(activity, 16)));
 
         bar.addView(item, new LinearLayout.LayoutParams(0, dp(activity, 56), 1f));
     }

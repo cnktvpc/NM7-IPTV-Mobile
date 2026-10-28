@@ -9,6 +9,8 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageButton;
+import java.util.Collections;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -62,6 +64,14 @@ public final class MainActivity extends Activity {
     private LinearLayout groupRow;
     private TextView txtEmpty;
     private ProgressBar progress;
+    private LinearLayout scheduleContainer;
+    private TextView txtScheduleTitle, txtScheduleDate, txtScheduleEmpty;
+    private ListView listSchedule;
+    private ImageButton btnSchedulePrevDay, btnScheduleNextDay;
+    private Button btnCloseSchedule;
+    private ScheduleProgramAdapter scheduleAdapter;
+    private long scheduleTargetDateMs = System.currentTimeMillis();
+    private boolean isScheduleTabOpen = false;
     private int duplicateCount, missingUrlCount, activeSection;
     private String currentSource = "", selectedGroup = "", epgUrl = DEFAULT_EPG_URL;
     private boolean loading, importExpanded = true, liveOnly;
@@ -76,7 +86,11 @@ public final class MainActivity extends Activity {
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setupViews();
+        setupScheduleViews();
         restoreSession();
+        if (getIntent() != null && getIntent().getBooleanExtra("OPEN_SCHEDULE_TAB", false)) {
+            showScheduleTab();
+        }
         loadLiveFeed();
         maybeShowSettings(getIntent());
     }
@@ -85,6 +99,9 @@ public final class MainActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         maybeShowSettings(intent);
+        if (intent != null && intent.getBooleanExtra("OPEN_SCHEDULE_TAB", false)) {
+            showScheduleTab();
+        }
     }
     @Override protected void onResume(){
         super.onResume();
@@ -137,6 +154,10 @@ public final class MainActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
+        if (isScheduleTabOpen) {
+            showChannelListTab();
+            return;
+        }
         try {
             if (Boolean.TRUE.equals(Class.forName("com.liskovsoft.smartyoutubetv2.droid.ui.playback.PlaybackActivity")
                     .getMethod("consumeNm7BrowseBack").invoke(null))) {
@@ -593,7 +614,7 @@ public final class MainActivity extends Activity {
     private void playDirect(){String source=inputUrl.getText().toString().trim();if(source.isEmpty()){toast("Nhập URL để phát");return;}Channel c=new Channel("URL trực tiếp","Trực tiếp",source,"","",java.util.Collections.emptyMap());play(c);}
     private void showImportTools(){setImportExpanded(true);inputUrl.setText("");inputUrl.requestFocus();}
     private void showEpgEditor(){final EditText field=new EditText(this);field.setHint("https://.../epg.xml hoặc epg.xml.gz");field.setSingleLine(true);field.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);field.setText(epgUrl);field.setSelection(field.length());new AlertDialog.Builder(this).setTitle("Lịch phát sóng XMLTV").setMessage("Ứng dụng tự đọc url-tvg trong playlist. Bạn cũng có thể nhập URL EPG thủ công.").setView(field).setPositiveButton("Tải lịch",(d,w)->{String value=field.getText().toString().trim();if(!value.startsWith("http://")&&!value.startsWith("https://")){toast("URL EPG phải bắt đầu bằng http:// hoặc https://");return;}epgUrl=value;saveSession();loadEpg(true);}).setNeutralButton("Xóa EPG",(d,w)->{epgUrl="";adapter.submitGuide(null);saveSession();toast("Đã xóa lịch phát sóng");}).setNegativeButton("Hủy",null).show();}
-    private void loadEpg(boolean notify){String address=epgUrl;io.execute(()->{try{EpgStore.Guide guide=EpgStore.download(address);ui(()->{if(!address.equals(epgUrl))return;adapter.submitGuide(guide);if(notify)toast(guide.size()>0?"Đã cập nhật lịch phát sóng":"Chưa tìm thấy chương trình đang phát");});}catch(Exception error){ui(()->{if(address.equals(epgUrl)&&notify)showError("Không tải được EPG: "+readable(error));});}});}
+    private void loadEpg(boolean notify){String address=epgUrl;io.execute(()->{try{EpgStore.Guide guide=EpgStore.download(address);ui(()->{if(!address.equals(epgUrl))return;adapter.submitGuide(guide);if(isScheduleTabOpen)loadScheduleForCurrentChannel();if(notify)toast(guide.size()>0?"Đã cập nhật lịch phát sóng":"Chưa tìm thấy chương trình đang phát");});}catch(Exception error){ui(()->{if(address.equals(epgUrl)&&notify)showError("Không tải được EPG: "+readable(error));});}});}
     void showSettingsFromNavigation(){ showSettings(); }
 
     private void maybeShowSettings(Intent intent){
@@ -669,4 +690,186 @@ public final class MainActivity extends Activity {
     private String readable(Exception e){return e==null?"Không rõ nguyên nhân":e.getMessage()==null?e.getClass().getSimpleName():e.getMessage();}
     private void toast(String m){Toast.makeText(this,m,Toast.LENGTH_SHORT).show();}
     private int dp(int v){return Math.round(v*getResources().getDisplayMetrics().density);}
+
+    private void setupScheduleViews() {
+        scheduleContainer = findViewById(R.id.scheduleContainer);
+        if (scheduleContainer == null) return;
+        txtScheduleTitle = findViewById(R.id.txtScheduleTitle);
+        txtScheduleDate = findViewById(R.id.txtScheduleDate);
+        txtScheduleEmpty = findViewById(R.id.txtScheduleEmpty);
+        listSchedule = findViewById(R.id.listSchedule);
+        btnSchedulePrevDay = findViewById(R.id.btnSchedulePrevDay);
+        btnScheduleNextDay = findViewById(R.id.btnScheduleNextDay);
+        btnCloseSchedule = findViewById(R.id.btnCloseSchedule);
+
+        scheduleAdapter = new ScheduleProgramAdapter(this, new ScheduleProgramAdapter.Listener() {
+            @Override
+            public void onCatchupClick(EpgStore.Programme p) {
+                Channel ch = MobileInlinePlayerProviderV2.getCurrentChannel();
+                if (ch == null && !allChannels.isEmpty()) ch = allChannels.get(0);
+                if (ch != null) {
+                    MobileInlinePlayerProviderV2.playCatchup(ch, p);
+                    scheduleAdapter.setActiveCatchupProgramme(p);
+                    toast("Đang phát lại: " + p.title);
+                }
+            }
+
+            @Override
+            public void onProgramClick(EpgStore.Programme p) {
+                long now = System.currentTimeMillis();
+                if (p.isPast(now)) {
+                    onCatchupClick(p);
+                } else {
+                    toast(p.title + "\n" + p.timeRangeText() + (p.desc.isEmpty() ? "" : "\n" + p.desc));
+                }
+            }
+        });
+        listSchedule.setAdapter(scheduleAdapter);
+
+        if (btnSchedulePrevDay != null) btnSchedulePrevDay.setOnClickListener(v -> changeScheduleDay(-1));
+        if (btnScheduleNextDay != null) btnScheduleNextDay.setOnClickListener(v -> changeScheduleDay(1));
+        if (btnCloseSchedule != null) btnCloseSchedule.setOnClickListener(v -> showChannelListTab());
+    }
+
+    private void changeScheduleDay(int dayDelta) {
+        scheduleTargetDateMs += dayDelta * 86_400_000L;
+        updateScheduleDateLabel();
+        loadScheduleForCurrentChannel();
+    }
+
+    private void updateScheduleDateLabel() {
+        if (txtScheduleDate == null) return;
+        java.util.Calendar calToday = java.util.Calendar.getInstance();
+        java.util.Calendar calTarget = java.util.Calendar.getInstance();
+        calTarget.setTimeInMillis(scheduleTargetDateMs);
+
+        int tYear = calToday.get(java.util.Calendar.YEAR);
+        int tDay = calToday.get(java.util.Calendar.DAY_OF_YEAR);
+        int targetYear = calTarget.get(java.util.Calendar.YEAR);
+        int targetDay = calTarget.get(java.util.Calendar.DAY_OF_YEAR);
+
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault());
+        String formatted = sdf.format(new java.util.Date(scheduleTargetDateMs));
+
+        if (tYear == targetYear && tDay == targetDay) {
+            txtScheduleDate.setText("Hôm nay " + formatted);
+        } else if (tYear == targetYear && tDay - 1 == targetDay) {
+            txtScheduleDate.setText("Hôm qua " + formatted);
+        } else {
+            txtScheduleDate.setText(formatted);
+        }
+    }
+
+    public boolean isScheduleTabOpen() {
+        return isScheduleTabOpen;
+    }
+
+    public void showScheduleTab() {
+        isScheduleTabOpen = true;
+        View searchRow = findViewById(R.id.searchRow);
+        if (searchRow != null) searchRow.setVisibility(View.GONE);
+        View groupRowContainer = findViewById(R.id.groupRowContainer);
+        if (groupRowContainer != null) groupRowContainer.setVisibility(View.GONE);
+        if (channelList != null) channelList.setVisibility(View.GONE);
+        if (txtEmpty != null) txtEmpty.setVisibility(View.GONE);
+        if (scheduleContainer != null) scheduleContainer.setVisibility(View.VISIBLE);
+
+        HomeTabBar.setSelectedTab(this, HomeTabBar.TAB_SCHEDULE);
+        updateScheduleDateLabel();
+        loadScheduleForCurrentChannel();
+    }
+
+    public void showChannelListTab() {
+        isScheduleTabOpen = false;
+        View searchRow = findViewById(R.id.searchRow);
+        if (searchRow != null) searchRow.setVisibility(View.VISIBLE);
+        View groupRowContainer = findViewById(R.id.groupRowContainer);
+        if (groupRowContainer != null) groupRowContainer.setVisibility(View.VISIBLE);
+        if (channelList != null) channelList.setVisibility(View.VISIBLE);
+        if (scheduleContainer != null) scheduleContainer.setVisibility(View.GONE);
+
+        HomeTabBar.setSelectedTab(this, HomeTabBar.TAB_IPTV);
+    }
+
+    public void toggleSchedulePanel() {
+        if (isScheduleTabOpen) {
+            showChannelListTab();
+        } else {
+            showScheduleTab();
+        }
+    }
+
+    public void onReplayStarted(Channel channel, EpgStore.Programme prog) {
+        if (scheduleAdapter != null) {
+            scheduleAdapter.setActiveCatchupProgramme(prog);
+        }
+    }
+
+    public void onReplayStopped() {
+        if (scheduleAdapter != null) {
+            scheduleAdapter.setActiveCatchupProgramme(null);
+        }
+    }
+
+    public void loadScheduleForCurrentChannel() {
+        Channel ch = MobileInlinePlayerProviderV2.getCurrentChannel();
+        if (ch == null && !allChannels.isEmpty()) {
+            ch = allChannels.get(0);
+        }
+        if (ch == null) {
+            if (txtScheduleTitle != null) txtScheduleTitle.setText("LỊCH PHÁT SÓNG");
+            if (txtScheduleEmpty != null) {
+                txtScheduleEmpty.setText("Chưa chọn kênh nào.");
+                txtScheduleEmpty.setVisibility(View.VISIBLE);
+            }
+            if (listSchedule != null) listSchedule.setVisibility(View.GONE);
+            return;
+        }
+
+        if (txtScheduleTitle != null) {
+            txtScheduleTitle.setText("LỊCH PHÁT SÓNG • " + ch.name());
+        }
+
+        if (scheduleAdapter != null) {
+            scheduleAdapter.setChannel(ch);
+        }
+
+        EpgStore.Guide guide = EpgStore.getGuide();
+        List<EpgStore.Programme> programmes = guide != null
+                ? guide.getSchedule(ch, scheduleTargetDateMs)
+                : Collections.emptyList();
+
+        if (programmes == null || programmes.isEmpty()) {
+            if (txtScheduleEmpty != null) {
+                txtScheduleEmpty.setText("Không có dữ liệu lịch phát sóng cho kênh " + ch.name());
+                txtScheduleEmpty.setVisibility(View.VISIBLE);
+            }
+            if (listSchedule != null) listSchedule.setVisibility(View.GONE);
+        } else {
+            if (txtScheduleEmpty != null) txtScheduleEmpty.setVisibility(View.GONE);
+            if (listSchedule != null) listSchedule.setVisibility(View.VISIBLE);
+            if (scheduleAdapter != null) {
+                EpgStore.Programme activeProg = MobileInlinePlayerProviderV2.getActiveCatchupProgramme();
+                scheduleAdapter.submit(programmes, activeProg);
+
+                long now = System.currentTimeMillis();
+                int scrollPos = -1;
+                for (int i = 0; i < programmes.size(); i++) {
+                    EpgStore.Programme p = programmes.get(i);
+                    if (activeProg != null && p.startMs == activeProg.startMs) {
+                        scrollPos = i;
+                        break;
+                    }
+                    if (p.isCurrent(now)) {
+                        scrollPos = i;
+                        break;
+                    }
+                }
+                if (scrollPos >= 0) {
+                    final int targetPos = Math.max(0, scrollPos - 1);
+                    listSchedule.post(() -> listSchedule.setSelection(targetPos));
+                }
+            }
+        }
+    }
 }

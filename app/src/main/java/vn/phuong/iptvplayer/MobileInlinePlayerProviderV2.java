@@ -17,6 +17,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.ActionMode;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.KeyboardShortcutGroup;
 import android.view.Menu;
@@ -87,6 +88,9 @@ public final class MobileInlinePlayerProviderV2 extends ContentProvider implemen
     private TextView programme;
     private TextView stats;
     private android.widget.Button liveServerButton;
+    private android.widget.Button scheduleButton;
+    private android.widget.Button returnToLiveButton;
+    private EpgStore.Programme activeCatchupProgramme;
     private android.widget.Button fullscreenLiveServerButton;
     private ImageButton fullscreenButton;
     private ListView channelList;
@@ -274,6 +278,40 @@ public final class MobileInlinePlayerProviderV2 extends ContentProvider implemen
         panel.addView(stats, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
+        LinearLayout actionsRow = new LinearLayout(activity);
+        actionsRow.setOrientation(LinearLayout.HORIZONTAL);
+        actionsRow.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        actionsParams.setMargins(dp(activity, 10), dp(activity, 4), dp(activity, 10), 0);
+
+        scheduleButton = new android.widget.Button(activity);
+        scheduleButton.setAllCaps(false);
+        scheduleButton.setTextSize(12);
+        scheduleButton.setTextColor(activity.getColor(R.color.accent));
+        scheduleButton.setBackgroundResource(R.drawable.button_secondary);
+        scheduleButton.setText("📅 Lịch phát sóng");
+        scheduleButton.setOnClickListener(v -> {
+            if (currentActivity != null) currentActivity.toggleSchedulePanel();
+        });
+        LinearLayout.LayoutParams schedParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, dp(activity, 38));
+        schedParams.setMarginEnd(dp(activity, 8));
+        actionsRow.addView(scheduleButton, schedParams);
+
+        returnToLiveButton = new android.widget.Button(activity);
+        returnToLiveButton.setAllCaps(false);
+        returnToLiveButton.setTextSize(12);
+        returnToLiveButton.setTextColor(activity.getColor(R.color.live_accent));
+        returnToLiveButton.setBackgroundResource(R.drawable.button_secondary);
+        returnToLiveButton.setText("🔴 Về trực tiếp");
+        returnToLiveButton.setVisibility(View.GONE);
+        returnToLiveButton.setOnClickListener(v -> returnToLiveInternal());
+        LinearLayout.LayoutParams liveReturnParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, dp(activity, 38));
+        liveReturnParams.setMarginEnd(dp(activity, 8));
+        actionsRow.addView(returnToLiveButton, liveReturnParams);
+
         liveServerButton = new android.widget.Button(activity);
         liveServerButton.setAllCaps(false);
         liveServerButton.setTextSize(12);
@@ -283,10 +321,10 @@ public final class MobileInlinePlayerProviderV2 extends ContentProvider implemen
         liveServerButton.setVisibility(View.GONE);
         liveServerButton.setOnClickListener(v -> showLiveServerPicker());
         LinearLayout.LayoutParams serverParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, dp(activity, 40));
-        serverParams.setMarginStart(dp(activity, 10));
-        serverParams.setMarginEnd(dp(activity, 10));
-        panel.addView(liveServerButton, serverParams);
+                LinearLayout.LayoutParams.WRAP_CONTENT, dp(activity, 38));
+        actionsRow.addView(liveServerButton, serverParams);
+
+        panel.addView(actionsRow, actionsParams);
 
         LinearLayout.LayoutParams panelParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -583,6 +621,9 @@ public final class MobileInlinePlayerProviderV2 extends ContentProvider implemen
         stablePlaybackSinceMs = 0;
         currentChannel = channel;
         updateLiveServerButton(channel);
+        if (currentActivity != null && currentActivity.isScheduleTabOpen()) {
+            currentActivity.loadScheduleForCurrentChannel();
+        }
         panel.setVisibility(View.VISIBLE);
         playerView.hideController();
         title.setText(channel.name());
@@ -1030,6 +1071,10 @@ public final class MobileInlinePlayerProviderV2 extends ContentProvider implemen
             exitFullscreen(true);
             return true;
         }
+        if (currentActivity != null && currentActivity.isScheduleTabOpen()) {
+            currentActivity.showChannelListTab();
+            return true;
+        }
         if (panel == null || panel.getVisibility() != View.VISIBLE) return false;
         ++playGeneration;
         releasePlayer();
@@ -1124,6 +1169,9 @@ public final class MobileInlinePlayerProviderV2 extends ContentProvider implemen
         programme = null;
         stats = null;
         liveServerButton = null;
+        scheduleButton = null;
+        returnToLiveButton = null;
+        activeCatchupProgramme = null;
         backgroundActive = false;
         resumeAfterLifecyclePause = false;
         fullscreen = false;
@@ -1405,6 +1453,70 @@ public final class MobileInlinePlayerProviderV2 extends ContentProvider implemen
         if (owner.currentActivity != null) owner.stopBackgroundService(owner.currentActivity);
     }
     @Override public void onActivitySaveInstanceState(Activity a, Bundle b) { }
+
+    public static Channel getCurrentChannel() {
+        return instance != null ? instance.currentChannel : null;
+    }
+
+    public static EpgStore.Programme getActiveCatchupProgramme() {
+        return instance != null ? instance.activeCatchupProgramme : null;
+    }
+
+    public static void playCatchup(Channel channel, EpgStore.Programme programme) {
+        if (instance != null) instance.playCatchupInternal(channel, programme);
+    }
+
+    public static void returnToLive() {
+        if (instance != null) instance.returnToLiveInternal();
+    }
+
+    public void playCatchupInternal(Channel channel, EpgStore.Programme prog) {
+        if (currentActivity == null || channel == null || prog == null) return;
+        this.activeCatchupProgramme = prog;
+        this.currentChannel = channel;
+        String catchupUrl = CatchupUrlBuilder.build(channel, prog);
+
+        Channel dvrChannel = new Channel(
+                channel.name(),
+                channel.group(),
+                catchupUrl,
+                channel.logo(),
+                channel.logo(),
+                channel.logo(),
+                channel.tvgId(),
+                channel.headers(),
+                channel.catchupType(),
+                channel.catchupDays(),
+                channel.catchupSource()
+        );
+        dvrChannel.options().addAll(channel.options());
+        playInline(dvrChannel, 0L, true);
+
+        if (title != null) {
+            title.setText(channel.name() + "  [DVR]");
+        }
+        if (programme != null) {
+            programme.setText("↺ Đang xem lại: " + prog.title + " (" + prog.timeRangeText() + ")");
+        }
+        if (returnToLiveButton != null) {
+            returnToLiveButton.setVisibility(View.VISIBLE);
+        }
+        if (currentActivity != null) {
+            currentActivity.onReplayStarted(channel, prog);
+        }
+    }
+
+    public void returnToLiveInternal() {
+        if (currentChannel == null) return;
+        activeCatchupProgramme = null;
+        if (returnToLiveButton != null) {
+            returnToLiveButton.setVisibility(View.GONE);
+        }
+        playInline(currentChannel, 0L, true);
+        if (currentActivity != null) {
+            currentActivity.onReplayStopped();
+        }
+    }
 
     @Override public Cursor query(Uri u, String[] p, String s, String[] a, String sort) { return null; }
     @Override public String getType(Uri u) { return null; }

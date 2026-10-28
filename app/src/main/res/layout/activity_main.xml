@@ -20,16 +20,125 @@
             <Button android:id="@+id/btnPlayUrl" android:layout_width="match_parent" android:layout_height="44dp" android:layout_marginTop="6dp" android:background="@drawable/button_secondary" android:text="▶ Phát URL trực tiếp" android:textAllCaps="false" android:textColor="@color/accent" />
         </LinearLayout>
     </ScrollView>
-    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="4dp">
+    <LinearLayout android:id="@+id/searchRow" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="4dp">
         <EditText android:id="@+id/inputSearch" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:singleLine="true" android:hint="Tìm kênh, nhóm hoặc URL…" android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" android:backgroundTint="@color/accent" />
         <Button android:id="@+id/btnClearFilters" android:layout_width="68dp" android:layout_height="44dp" android:layout_marginStart="6dp" android:background="@drawable/button_secondary" android:text="Bỏ lọc" android:textSize="12sp" android:textAllCaps="false" android:textColor="@color/text_primary" />
         <Button android:id="@+id/btnReloadUrl" android:layout_width="74dp" android:layout_height="44dp" android:layout_marginStart="6dp" android:background="@drawable/button_secondary" android:text="↻ Tải lại" android:textSize="11sp" android:textAllCaps="false" android:textColor="@color/accent" />
         <Button android:id="@+id/btnIptvOptions" android:layout_width="48dp" android:layout_height="44dp" android:layout_marginStart="6dp" android:background="@drawable/button_secondary" android:text="⚙" android:contentDescription="Tùy chọn IPTV" android:textSize="18sp" android:textAllCaps="false" android:textColor="@color/text_primary" />
     </LinearLayout>
-    <HorizontalScrollView android:layout_width="match_parent" android:layout_height="50dp" android:scrollbars="none"><LinearLayout android:id="@+id/groupRow" android:layout_width="wrap_content" android:layout_height="match_parent" android:gravity="center_vertical" android:orientation="horizontal" /></HorizontalScrollView>
+    <HorizontalScrollView android:id="@+id/groupRowContainer" android:layout_width="match_parent" android:layout_height="50dp" android:scrollbars="none"><LinearLayout android:id="@+id/groupRow" android:layout_width="wrap_content" android:layout_height="match_parent" android:gravity="center_vertical" android:orientation="horizontal" /></HorizontalScrollView>
     <ProgressBar android:id="@+id/progress" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="3dp" android:visibility="gone" />
     <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
         <vn.phuong.iptvplayer.Nm7SuperOkGroupSwipeListView android:id="@+id/listChannels" android:layout_width="match_parent" android:layout_height="match_parent" android:divider="@android:color/transparent" android:dividerHeight="5dp" android:listSelector="@drawable/list_focus" />
         <TextView android:id="@+id/txtEmpty" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:padding="20dp" android:text="Chưa có kênh phù hợp." android:textColor="@color/text_secondary" android:visibility="gone" />
+
+        <!-- Schedule Panel Container -->
+        <LinearLayout
+            android:id="@+id/scheduleContainer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <!-- Schedule Header & Channel Name -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="4dp">
+
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="22dp"
+                    android:background="#FF9800" />
+
+                <TextView
+                    android:id="@+id/txtScheduleTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:text="LỊCH PHÁT SÓNG"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnCloseSchedule"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:background="@drawable/button_secondary"
+                    android:text="✕ Kênh TV"
+                    android:textAllCaps="false"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <!-- Date Selector Row: < Hôm nay 28/10/2026 > -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:background="@drawable/panel"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:layout_marginVertical="3dp"
+                android:paddingHorizontal="8dp">
+
+                <ImageButton
+                    android:id="@+id/btnSchedulePrevDay"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Ngày trước"
+                    android:src="@drawable/ic_nm7_arrow_left"
+                    android:tint="#FF9800" />
+
+                <TextView
+                    android:id="@+id/txtScheduleDate"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="Hôm nay 28/10/2026"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <ImageButton
+                    android:id="@+id/btnScheduleNextDay"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Ngày sau"
+                    android:src="@drawable/ic_nm7_arrow_right"
+                    android:tint="#FF9800" />
+            </LinearLayout>
+
+            <!-- Program List -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1">
+
+                <ListView
+                    android:id="@+id/listSchedule"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:divider="@android:color/transparent"
+                    android:dividerHeight="4dp"
+                    android:listSelector="@drawable/list_focus" />
+
+                <TextView
+                    android:id="@+id/txtScheduleEmpty"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:padding="20dp"
+                    android:text="Không có dữ liệu lịch phát sóng cho kênh này."
+                    android:textColor="@color/text_secondary"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </LinearLayout>
     </FrameLayout>
 </LinearLayout>
