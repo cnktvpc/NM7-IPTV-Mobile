@@ -2,6 +2,8 @@ package vn.phuong.iptvplayer;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -90,7 +92,11 @@ final class CatchupUrlBuilder {
         replacements.put("${ENDISO}", isoEnd);
         replacements.put("${START_LOCAL}", localStart);
         replacements.put("${END_LOCAL}", localEnd);
-        for (Map.Entry<String,String> entry : replacements.entrySet()) {
+        // Replace longer placeholders first so {start} cannot partially consume
+        // ${start} or {startTime}, and {end} cannot consume {endTime}.
+        List<Map.Entry<String,String>> ordered = new ArrayList<>(replacements.entrySet());
+        ordered.sort((left, right) -> Integer.compare(right.getKey().length(), left.getKey().length()));
+        for (Map.Entry<String,String> entry : ordered) {
             template = template.replace(entry.getKey(), entry.getValue());
         }
         // Common Xtream-style templates may use {start} and {duration}; append mode

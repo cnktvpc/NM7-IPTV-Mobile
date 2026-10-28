@@ -21,7 +21,7 @@ public final class CatchupUrlBuilderTest {
 
     @Test public void buildsArchiveUrlFromProgrammeTimesWithoutChangingLiveUrl() {
         String live = "https://live.example/stream.m3u8";
-        Channel c = channel("#EXTINF:-1 catchup=\"default\" catchup-days=\"7\" catchup-source=\"https://archive.example/recording?start={start}&end={end}&duration={duration}\",Test TV", live);
+        Channel c = channel("#EXTINF:-1 catchup=\"default\" catchup-days=\"7\" catchup-source=\"https://archive.example/recording?start=${start}&end={endTime}&duration=${duration}\",Test TV", live);
         EpgProgram p = new EpgProgram("test.tv", "News", 1793178000000L, 1793179800000L, "");
         String url = CatchupUrlBuilder.build(c,p,p.endMs+1000L);
         assertTrue(url.startsWith("https://archive.example/recording?"));
