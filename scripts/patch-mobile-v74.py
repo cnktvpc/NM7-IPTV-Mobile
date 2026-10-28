@@ -60,9 +60,11 @@ replacement = '''        } else if (SMARTTUBE_PLAYBACK.equals(name)) {
                     syncNm7PlayerTabs.run();
                 }
             });'''
-if s.count(anchor) != 1:
-    raise SystemExit("v74: PlaybackActivity tab attach anchor missing/ambiguous")
-s = s.replace(anchor, replacement, 1)
+if s.count(anchor) == 1:
+    s = s.replace(anchor, replacement, 1)
+elif "syncNm7PlayerTabs" not in s or "HomeTabBar.setVisible(activity, !fullscreen)" not in s:
+    raise SystemExit("v74: PlaybackActivity tab attach anchor missing and responsive-tab patch not present")
+# Otherwise the current source already contains the responsive-tab behavior.
 p.write_text(s, encoding="utf-8")
 
 print("NM7 1.10.74 optimization/fullscreen patch applied")
