@@ -8,10 +8,10 @@
 - Candidate: **1.10.146 / versionCode 163**.
 - Stable was not modified. PR #1 is a draft; do not merge until CI and real-device checks pass.
 
-## User feedback / discoverability fix in progress
+## User feedback / discoverability fix — implemented and CI verified
 
 - User reported the new EPG feature was not visible. The previous candidate hid the entry behind channel long-press and the player header's transient controls; this was not discoverable enough.
-- Added a visible `EPG` button directly to every channel row, wired to the same channel schedule/catch-up flow. The existing long-press menu and in-player `Lịch` entry remain. Build this commit and send a replacement APK; do not ask the user to keep looking for the buried menu.
+- Added a visible `EPG` button directly to every channel row, wired to the same channel schedule/catch-up flow. The existing long-press menu and in-player `Lịch` entry remain. This was built and packaged successfully in both push and PR workflows.
 
 ## Implemented
 
@@ -24,13 +24,22 @@
 - `.github/workflows/android-mobile-final.yml`: feature branch push trigger, candidate version check (1.10.146 / 163), Catch-up tests before assemble, and APK export naming.
 - README's candidate summary updated; historical release notes remain.
 
-## Previous build status — CI verified; superseded by visible-entry fix
+## Latest build — visible EPG fix verified
 
-- Push build: [Actions run #40639183001](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40639183001), commit `04291b79d0f480b06dd574367f4c785ad7c41590`, **success**.
-- Pull-request validation: [Actions run #40639187227](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40639187227), same commit, **success**.
-- Passed: EPG Catch-up unit tests, `:app:assembleMobileDebug`, artifact upload and export to the temporary CI branch.
-- Artifact `NM7-IPTV-Mobile-FINAL`, ID `12794439441`. APK SHA-256: `86b09b5b9b6658bd61f682081bcc8f5fb52a5cdcaea5fca9cfd89e6296e69d85`.
-- **Build/packaging is verified; real-device playback and provider-specific Catch-up remain unverified.** Do not merge to stable until user/device testing passes.
+- Source commit: `b264cdd62437c360a50f6488430d0e6f3fccdb71`.
+- Push build [#40642855178](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40642855178): **SUCCESS**.
+- PR validation [#40642861504](https://github.com/cnktvpc/NM7-IPTV-Mobile/actions/runs/40642861504): **SUCCESS**.
+- Unit tests, Mobile APK assembly, artifact upload, and temporary CI-branch export all passed.
+- Artifact: `NM7-IPTV-Mobile-FINAL`, ID `12796551400`, expires 2026-11-27.
+- Delivered APK: `NM7-IPTV-Mobile-1.10.146-EPG-Catchup-visible-EPG.apk` (91,253,360 bytes).
+- APK SHA-256: `0e53cf109a50ba6de5fe1e56f1512aef603537f09c02e78b40161b5d9d8a0897`.
+- Artifact ZIP SHA-256: `1d1106636ea1808ad75901bb123474ec7994096ff98731e400e759ae5bc72dc7`.
+- Verified locally: checksum matches CI `SHA256SUMS.txt`; APK and containing artifact ZIP pass integrity checks; DEX includes the visible EPG callback and schedule/catch-up implementation.
+- Stable remains unchanged; PR #1 remains draft. **Build success does not prove provider-specific catch-up playback or device-level focus/rendering.** Keep these as test gates.
+
+## Superseded build
+
+- Earlier build at commit `04291b79d0f480b06dd574367f4c785ad7c41590`, run #40639183001, was superseded because the EPG entry was not sufficiently visible. Do not use it to test the row-level EPG button.
 
 ## Remaining release gates
 
