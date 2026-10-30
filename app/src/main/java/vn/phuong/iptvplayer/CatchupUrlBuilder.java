@@ -46,7 +46,16 @@ public final class CatchupUrlBuilder {
                 template = catchupSource;
             }
         } else {
-            template = buildDefaultTemplate(baseStreamUrl, catchupType);
+            Matcher seenowMatcher = Pattern.compile("(?i)livevlisctcdnw\\.seenow\\.vn/livesnv2/(VTV[0-9]+_HD)/manifest\\.mpd").matcher(baseStreamUrl);
+            if (seenowMatcher.find()) {
+                String ch = seenowMatcher.group(1).toUpperCase(Locale.ROOT);
+                template = "https://livesct.vtvprime.vn/Live_DASHDRM1/" + ch + "/manifest.mpd?startTime=${start}&stopTime=${stop}";
+            } else if (baseStreamUrl.contains("vtvprime.vn")) {
+                char sep = baseStreamUrl.contains("?") ? '&' : '?';
+                template = baseStreamUrl + sep + "startTime=${start}&stopTime=${stop}";
+            } else {
+                template = buildDefaultTemplate(baseStreamUrl, catchupType);
+            }
         }
 
         return replaceVariables(template, startMs, endMs);
@@ -92,7 +101,9 @@ public final class CatchupUrlBuilder {
         result = replaceAll(result, "(?i)\\$\\{stop\\}|\\{stop\\}|\\$\\{end\\}|\\{end\\}|__STOP__|__END__", String.valueOf(endSec));
         result = replaceAll(result, "(?i)\\$\\{duration\\}|\\{duration\\}|__DURATION__", String.valueOf(durationSec));
         result = replaceAll(result, "(?i)\\$\\{lutc\\}|\\{lutc\\}|\\$\\{utc\\}|\\{utc\\}|__LUTC__", String.valueOf(nowSec));
-        result = replaceAll(result, "(?i)\\$\\{offset\\}|\\{offset\\}", String.valueOf(offsetSec));
+        long effectiveOffset = (template.contains("chunks_dvr_range") || template.contains("/dvr/") || template.contains("mytvod"))
+                ? durationSec : offsetSec;
+        result = replaceAll(result, "(?i)\\$\\{offset\\}|\\{offset\\}", String.valueOf(effectiveOffset));
 
         // ISO 8601 formatting
         String startIso = formatIso8601(startMs);

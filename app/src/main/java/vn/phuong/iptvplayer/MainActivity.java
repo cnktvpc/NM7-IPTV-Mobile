@@ -708,6 +708,10 @@ public final class MainActivity extends Activity {
                 Channel ch = MobileInlinePlayerProviderV2.getCurrentChannel();
                 if (ch == null && !allChannels.isEmpty()) ch = allChannels.get(0);
                 if (ch != null) {
+                    if (!ch.hasCatchup()) {
+                        toast("Kênh \"" + ch.name() + "\" không hỗ trợ xem lại (Catchup)");
+                        return;
+                    }
                     MobileInlinePlayerProviderV2.playCatchup(ch, p);
                     scheduleAdapter.setActiveCatchupProgramme(p);
                     toast("Đang phát lại: " + p.title);
@@ -718,7 +722,18 @@ public final class MainActivity extends Activity {
             public void onProgramClick(EpgStore.Programme p) {
                 long now = System.currentTimeMillis();
                 if (p.isPast(now)) {
+                    Channel ch = MobileInlinePlayerProviderV2.getCurrentChannel();
+                    if (ch != null && !ch.hasCatchup()) {
+                        toast("Kênh \"" + ch.name() + "\" không hỗ trợ xem lại (Catchup)");
+                        return;
+                    }
                     onCatchupClick(p);
+                } else if (p.isCurrent(now)) {
+                    if (MobileInlinePlayerProviderV2.getActiveCatchupProgramme() != null) {
+                        MobileInlinePlayerProviderV2.returnToLive();
+                    } else {
+                        toast("Đang xem trực tiếp: " + p.title);
+                    }
                 } else {
                     toast(p.title + "\n" + p.timeRangeText() + (p.desc.isEmpty() ? "" : "\n" + p.desc));
                 }

@@ -662,12 +662,14 @@ public final class MobileInlinePlayerProviderV2 extends ContentProvider implemen
             DefaultMediaSourceFactory mediaFactory = new DefaultMediaSourceFactory(data)
                     .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(8));
 
-            MediaItem.Builder media = new MediaItem.Builder().setUri(channel.url())
-                    .setLiveConfiguration(new MediaItem.LiveConfiguration.Builder()
-                            .setTargetOffsetMs(3_500)
-                            .setMinPlaybackSpeed(1.0f)
-                            .setMaxPlaybackSpeed(1.0f)
-                            .build());
+            MediaItem.Builder media = new MediaItem.Builder().setUri(channel.url());
+            if (activeCatchupProgramme == null) {
+                media.setLiveConfiguration(new MediaItem.LiveConfiguration.Builder()
+                        .setTargetOffsetMs(3_500)
+                        .setMinPlaybackSpeed(1.0f)
+                        .setMaxPlaybackSpeed(1.0f)
+                        .build());
+            }
             String mime = forcedMime;
             if (mime == null || mime.isEmpty()) mime = channel.mimeHint();
             if (mime == null || mime.isEmpty()) mime = StreamSpec.inferMime(channel.url(), channel.options());
@@ -1024,7 +1026,15 @@ public final class MobileInlinePlayerProviderV2 extends ContentProvider implemen
     }
 
     private void updateProgramme(Channel channel) {
-        if (programme == null || channelList == null) return;
+        if (programme == null) return;
+        if (activeCatchupProgramme != null) {
+            programme.setText("↺ Đang xem lại: " + activeCatchupProgramme.title + " (" + activeCatchupProgramme.timeRangeText() + ")");
+            if (title != null) {
+                title.setText(channel.name() + "  [DVR]");
+            }
+            return;
+        }
+        if (channelList == null) return;
         try {
             Object adapter = channelList.getAdapter();
             if (!(adapter instanceof ChannelAdapter)) { programme.setText(channel.group()); return; }

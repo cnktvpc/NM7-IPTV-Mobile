@@ -204,9 +204,14 @@ public final class Channel {
     public int catchupDays() { return catchupDays; }
     public String catchupSource() { return catchupSource; }
     public boolean hasCatchup() {
-        return (catchupSource != null && !catchupSource.isEmpty())
-                || (catchupType != null && !catchupType.isEmpty())
-                || catchupDays > 0;
+        if (catchupSource != null && !catchupSource.isEmpty()) return true;
+        if (catchupType != null && !catchupType.isEmpty()) return true;
+        if (catchupDays > 0) return true;
+        String lowerUrl = url != null ? url.toLowerCase(Locale.ROOT) : "";
+        String lowerTvg = tvgId != null ? tvgId.toLowerCase(Locale.ROOT) : "";
+        if (lowerUrl.contains("vtvprime") || lowerUrl.contains("livesnv2/vtv")) return true;
+        if (lowerTvg.matches("(?i)vtv[1-9].*")) return true;
+        return false;
     }
     public Map<String, String> headers() { return headers; }
     public boolean selected() { return selected; }
@@ -218,8 +223,10 @@ public final class Channel {
     public String mimeHint() {
         for (String option : options) {
             String lower = option.toLowerCase(Locale.ROOT);
-            if (lower.endsWith("manifest_type=hls")) return "application/x-mpegURL";
-            if (lower.endsWith("manifest_type=mpd")) return "application/dash+xml";
+            if (lower.contains("manifest_type=hls") || lower.contains("manifest-type=hls")) return "application/x-mpegURL";
+            if (lower.contains("manifest_type=mpd") || lower.contains("manifest-type=mpd")
+                    || lower.contains("manifest_type=dash") || lower.contains("manifest-type=dash"))
+                return "application/dash+xml";
             if (lower.startsWith("#kodiprop:mimetype=")) return option.substring(option.indexOf('=') + 1).trim();
         }
         return "";
